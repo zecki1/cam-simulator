@@ -399,6 +399,105 @@ export default function ConfigPanel() {
                 }
               />
             </Field>
+            <Field label="Pose">
+              <SelectField
+                ariaLabel="Pose do participante"
+                value={s.pose ?? "em_pe"}
+                options={[
+                  { value: "em_pe", label: "Em pé" },
+                  { value: "sentado", label: "Sentado" },
+                  { value: "andando", label: "Andando" },
+                ]}
+                onChange={(pose) => updateElement(s.id, { pose: pose as SubjectElement["pose"] })}
+              />
+            </Field>
+            <Field label="Biotipo">
+              <SelectField
+                ariaLabel="Biotipo do participante"
+                value={s.bodyType ?? "normal"}
+                options={[
+                  { value: "magro", label: "Magro" },
+                  { value: "normal", label: "Normal" },
+                  { value: "gordo", label: "Gordo" },
+                ]}
+                onChange={(bodyType) => updateElement(s.id, { bodyType: bodyType as SubjectElement["bodyType"] })}
+              />
+            </Field>
+            <Field label="Cor da camisa">
+              <input
+                type="color"
+                value={s.shirtColor ?? "#2B6CB0"}
+                onChange={(e) => updateElement(s.id, { shirtColor: e.target.value })}
+                style={{ width: "100%", height: "36px", border: "none", borderRadius: "4px", cursor: "pointer" }}
+              />
+            </Field>
+            <Field label="Expressão">
+              <SelectField
+                ariaLabel="Expressão facial"
+                value={s.expression ?? "neutro"}
+                options={[
+                  { value: "neutro", label: "Neutro" },
+                  { value: "sorrindo", label: "Sorrindo" },
+                  { value: "serio", label: "Sério" },
+                ]}
+                onChange={(expression) => updateElement(s.id, { expression: expression as SubjectElement["expression"] })}
+              />
+            </Field>
+            <Field label="Óculos">
+              <SelectField
+                ariaLabel="Usa óculos"
+                value={s.glasses ? "true" : "false"}
+                options={[
+                  { value: "false", label: "Não" },
+                  { value: "true", label: "Sim" },
+                ]}
+                onChange={(v) => updateElement(s.id, { glasses: v === "true" })}
+              />
+            </Field>
+            <Field label="Acessórios">
+              <Flex flexWrap="wrap" gap={2}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.accessories?.earrings ?? false}
+                    onChange={(e) => updateElement(s.id, { accessories: { ...s.accessories, earrings: e.target.checked } })}
+                  />
+                  <Text ml={1} fontSize="sm">Brincos</Text>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.accessories?.watch ?? false}
+                    onChange={(e) => updateElement(s.id, { accessories: { ...s.accessories, watch: e.target.checked } })}
+                  />
+                  <Text ml={1} fontSize="sm">Relógio</Text>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.accessories?.necklace ?? false}
+                    onChange={(e) => updateElement(s.id, { accessories: { ...s.accessories, necklace: e.target.checked } })}
+                  />
+                  <Text ml={1} fontSize="sm">Colar</Text>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.accessories?.tie ?? false}
+                    onChange={(e) => updateElement(s.id, { accessories: { ...s.accessories, tie: e.target.checked } })}
+                  />
+                  <Text ml={1} fontSize="sm">Gravata</Text>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.accessories?.badge ?? false}
+                    onChange={(e) => updateElement(s.id, { accessories: { ...s.accessories, badge: e.target.checked } })}
+                  />
+                  <Text ml={1} fontSize="sm">Crachá</Text>
+                </label>
+              </Flex>
+            </Field>
             <SliderField
               label="Altura do participante"
               value={s.heightCm}

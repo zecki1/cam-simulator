@@ -85,11 +85,32 @@ export interface AcousticPanelElement extends BaseElement {
 }
 
 export type SubjectRole = "apresentador" | "instrutor" | "aluno";
+export type SubjectPose = "em_pe" | "sentado" | "andando";
+export type BodyType = "magro" | "normal" | "gordo";
+export type Expression = "neutro" | "sorrindo" | "serio";
 
 export interface SubjectElement extends BaseElement {
   type: "subject";
   heightCm: number; // altura do participante
   role: SubjectRole;
+  /** Pose do participante */
+  pose?: SubjectPose;
+  /** Biotipo/corpo */
+  bodyType?: BodyType;
+  /** Cor da camisa/roupa (hex) */
+  shirtColor?: string;
+  /** Expressão facial */
+  expression?: Expression;
+  /** Usa óculos */
+  glasses?: boolean;
+  /** Acessórios: brincos, relogio, colar, gravata, cracha */
+  accessories?: {
+    earrings?: boolean;
+    watch?: boolean;
+    necklace?: boolean;
+    tie?: boolean;
+    badge?: boolean;
+  };
 }
 
 export interface BoomMicElement extends BaseElement {

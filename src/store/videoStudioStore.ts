@@ -150,6 +150,18 @@ function createElement(
         type: "subject",
         heightCm: 175,
         role: "apresentador",
+        pose: "em_pe",
+        bodyType: "normal",
+        shirtColor: "#2B6CB0",
+        expression: "neutro",
+        glasses: false,
+        accessories: {
+          earrings: false,
+          watch: false,
+          necklace: false,
+          tie: false,
+          badge: false,
+        },
       };
       return el;
     }

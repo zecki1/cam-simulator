@@ -218,18 +218,18 @@ shirtColor: string;   // color picker, default por role
 | # | Etapa | Esforço | Status | Concluída em |
 |---|---|---|---|---|
 | 1 | Assets GLB + catálogo + auto-fit + fallback | 2 dias | ✅ **concluída** | 30/09/2026 |
-| 2 | Biotipos do apresentador | 2 dias | ⬜ pendente | |
-| 3 | Reflexos (Environment map) | 1 dia | ⬜ pendente | |
-| 4 | Sombras universais | 0,5–1 dia | ⬜ pendente | |
-| 5 | Modo fantasma (WASD) | 1 dia | ⬜ pendente | |
+| 2 | Biotipos do apresentador | 2 dias | ✅ **concluída** | 30/09/2026 |
+| 3 | Reflexos (Environment map) | 1 dia | ✅ **concluída** | 30/09/2026 |
+| 4 | Sombras universais | 0,5–1 dia | ✅ **concluída** | 30/09/2026 |
+| 5 | Modo fantasma (WASD) | 1 dia | ✅ **concluída** | 30/09/2026 |
 | 6 | Simulador 100% de câmera (zoom, pan/tilt, foco, anatomia) | 2 dias | 🔄 **parcial** | modelos+pan+anatomia ✓ 30/09 |
 | 7 | Bancada de Áudio e Vídeo | 2–3 dias | ⬜ pendente | |
 | 8 | Testes e validação | 1 dia | ⬜ pendente | |
-| | **Total** | **~11–14 dias** | **1/8** | |
+| | **Total** | **~11–14 dias** | **6/8** | |
 
 **Ordem de execução:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 (cada etapa só inicia após o gate da anterior).
 
-**Progresso geral:** `1 / 8` etapas concluídas · Etapa 6 parcial (modelos GLB, catálogo, pan/tilt, exposição/WB, sala, preset, chromakey, anatomia ✓) · gate Etapa 1: `lint`+`build`+`test` ✓
+**Progresso geral:** `6 / 8` etapas concluídas · Etapa 6 parcial (modelos GLB, catálogo, pan/tilt, exposição/WB, sala, preset, chromakey, anatomia ✓) · Itens extras do roadmap v0.3 concluídos: 11–19 (fantasma, colisão, reflexos, personagem, sombras, sala, tooltips/edição inline, dicas Resend, catálogo GLB) · gate: `lint`+`test`+`build` ✓
 
 ---
 

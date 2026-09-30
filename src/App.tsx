@@ -31,6 +31,7 @@ import { buildNativeSelectStyles } from "./selectStyles";
 
 import PhotographyGraphic, { SUBJECTS } from "./PhotographyGraphic";
 import VideoStudioPage from "./videoStudio/VideoStudioPage";
+import { SuggestionButton } from "./videoStudio/SuggestionModal";
 
 import Telephoto from "./assets/100-400.png";
 import Fisheye from "./assets/fishey.png";
@@ -315,19 +316,24 @@ const cropFactor = isCustomSensor
             Estúdio de vídeo
           </Button>
         </Stack>
-        <Tooltip
-          label={
-            colorMode === "dark" ? "Switch to light mode" : "Switch to dark mode"
-          }
-        >
-          <IconButton
-            aria-label="Toggle color mode"
-            icon={colorMode === "dark" ? <FiSun /> : <FiMoon />}
-            size="sm"
-            variant="ghost"
-            onClick={toggleColorMode}
-          />
-        </Tooltip>
+        <Stack direction="row" spacing={2} align="center">
+          <SuggestionButton />
+          <Tooltip
+            label={
+              colorMode === "dark"
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+          >
+            <IconButton
+              aria-label="Toggle color mode"
+              icon={colorMode === "dark" ? <FiSun /> : <FiMoon />}
+              size="sm"
+              variant="ghost"
+              onClick={toggleColorMode}
+            />
+          </Tooltip>
+        </Stack>
       </Flex>
 
       {page === "dof" && (

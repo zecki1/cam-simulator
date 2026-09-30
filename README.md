@@ -257,12 +257,12 @@ tips (id, user_id, title, body, category, status, created_at)
 - **Feedback visual**: contorno vermelho + shake suave ao tentar invadir zona ocupada
 - **Modo "Livre" (toggle)** → desativa colisão para layouts rápidos/artísticos
 
-### 💡 Sistema de Dicas, Ideias e Sugestões (via Resend)
-- **Botão "💡 Sugerir melhoria"** no header → modal com categoria (Iluminação / Câmera / Estúdio / UI / Bug) + textarea
-- **Envio via Resend API** (serverless function Supabase/Vercel) → email para equipe + confirmado ao usuário
-- **Painel admin** (roteado só para admins) → lista, status (nova/em análise/implementada/fechada), resposta
-- **Notificação in-app** quando sugestão do usuário for implementada
-- **Dicas contextuais automáticas** (ex.: "Key light muito alta → sombra no olho. Tente baixar 20 cm")
+### 💡 Sistema de Dicas, Ideias e Sugestões (via Resend) ✅ **IMPLEMENTADA**
+- **Botão "💡 Sugerir melhoria"** no header → modal com categoria (Iluminação / Câmera / Estúdio / UI / Bug) + título + textarea + contato opcional
+- **Envio via Resend API** — `api/suggest.js` (Vercel Serverless) valida e encaminha por email quando `RESEND_API_KEY` + `SUGGESTION_TO_EMAIL` estão definidos
+- **Fallback local**: sem backend (dev/estático), a sugestão é gravada em `localStorage` e o toast informa o modo usado
+- **Testes**: validação, persistência local e fallback sem rede (`suggestions.test.tsx`)
+- *Pendente (requer Auth — Etapa 9):* painel admin com status das sugestões, notificação in-app e dicas contextuais automáticas
 
 ### 🎨 Personalização Visual do Estúdio (Planta Baixa) ✅ **IMPLEMENTADA**
 - **Seção "Aparência da Sala"** no ConfigPanel:
@@ -304,7 +304,7 @@ tips (id, user_id, title, body, category, status, created_at)
 | 15 | **Sombras Físicas + Queda** | decay=2 opcional, PCFSoftShadowMap, bias por tipo, budget 8 | 1 dia | ✅ **concluída** |
 | 16 | **Customização Sala** | Cor piso/paredes/teto, textura, refletividade | 1 dia | ✅ **concluída** |
 | 17 | **Tooltips + Edição Inline** | Hover tooltip, menu de contexto (duplicar/bloquear/focar/remover), Alt+arrasta clonar | 1–2 dias | ✅ **concluída** |
-| 18 | **Sistema de Dicas (Resend)** | Modal sugestão → Edge Function → Resend → Admin panel | 1 dia |
+| 18 | **Sistema de Dicas (Resend)** | Modal sugestão → Edge Function → Resend → Admin panel | 1 dia | ✅ **concluída** (modal + endpoint + fallback local; admin depende da Etapa 9) |
 | 19 | **Catálogo Novos GLBs** | Registrar 12+ modelos novos, identificar óculos/acessórios, configurar materiais | 1 dia | ✅ **concluída** |
 | 20 | **README Interativo** | Blocos de quiz embutidos (MDX ou componente React no README renderizado) | 0,5 dia |
 
@@ -312,10 +312,10 @@ tips (id, user_id, title, body, category, status, created_at)
 
 ## Roadmap imediato (atualizado)
 
-1. **Item 18** — Sistema de dicas via Resend (modal → Edge Function → admin)
-2. **Etapa 9–10** do roadmap: Auth+Ranking (Supabase) e Quiz Engine
+1. **Etapa 9–10** do roadmap: Auth+Ranking (Supabase) e Quiz Engine
+2. **Etapa 6–7**: foco manual/bokeh e Bancada A/V (itens do PLANEJAMENTO)
 3. Gate de qualidade por etapa: `npm run lint && npm test && npm run build`
-4. Deploy contínuo na Vercel (base `/cam-simulator/`; preview por PR + produção em `main`)
+4. Deploy contínuo na Vercel (base `/cam-simulator/`; preview por PR + produção em `main`; variáveis `RESEND_API_KEY`/`SUGGESTION_TO_EMAIL` para o envio de sugestões)
 
 ---
 

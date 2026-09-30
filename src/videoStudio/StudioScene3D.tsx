@@ -21,7 +21,7 @@ import type {
   SubjectElement,
   TableElement,
 } from "../types/videoStudio";
-import { cameraAimDeg, computeDof, focusDistanceCmOf, isInCameraCone, verticalFovDeg } from "./cameraMath";
+import { bodyWidthFactor, cameraAimDeg, computeDof, focusDistanceCmOf, isInCameraCone, verticalFovDeg } from "./cameraMath";
 import { isPanningRecently } from "./interact";
 import { beamAngleRad, kelvinToRgb, lightAim, lightIntensity } from "./lighting";
 
@@ -49,6 +49,7 @@ function Character({ subject }: { subject: SubjectElement }) {
   const h = subject.heightCm;
   const colors = ROLE_COLORS[subject.role];
   const ref = useShadowFlags();
+  const k = bodyWidthFactor(subject.bodyType);
 
   return (
     <group
@@ -61,42 +62,45 @@ function Character({ subject }: { subject: SubjectElement }) {
         <meshBasicMaterial color="#000000" transparent opacity={0.25} depthWrite={false} />
       </mesh>
 
-      {[-1, 1].map((side) => (
-        <mesh key={`leg${side}`} position={[side * h * 0.05, h * 0.245, 0]}>
-          <capsuleGeometry args={[h * 0.042, h * 0.4, 4, 12]} />
-          <meshStandardMaterial color={colors.pants} roughness={0.85} />
-        </mesh>
-      ))}
+      {/* corpo (tronco/pernas/braços) — largura escala com o biotipo */}
+      <group scale={[k, 1, k]}>
+        {[-1, 1].map((side) => (
+          <mesh key={`leg${side}`} position={[side * h * 0.05, h * 0.245, 0]}>
+            <capsuleGeometry args={[h * 0.042, h * 0.4, 4, 12]} />
+            <meshStandardMaterial color={colors.pants} roughness={0.85} />
+          </mesh>
+        ))}
 
-      {[-1, 1].map((side) => (
-        <mesh key={`foot${side}`} position={[side * h * 0.05, h * 0.022, h * 0.028]}>
-          <boxGeometry args={[h * 0.07, h * 0.044, h * 0.12]} />
-          <meshStandardMaterial color="#1A1A1A" roughness={0.9} />
-        </mesh>
-      ))}
+        {[-1, 1].map((side) => (
+          <mesh key={`foot${side}`} position={[side * h * 0.05, h * 0.022, h * 0.028]}>
+            <boxGeometry args={[h * 0.07, h * 0.044, h * 0.12]} />
+            <meshStandardMaterial color="#1A1A1A" roughness={0.9} />
+          </mesh>
+        ))}
 
-      <mesh position={[0, h * 0.67, 0]}>
-        <capsuleGeometry args={[h * 0.085, h * 0.19, 6, 16]} />
-        <meshStandardMaterial color={colors.shirt} roughness={0.8} />
-      </mesh>
-
-      {[-1, 1].map((side) => (
-        <mesh
-          key={`arm${side}`}
-          position={[side * h * 0.115, h * 0.66, 0]}
-          rotation={[0, 0, side * 0.06]}
-        >
-          <capsuleGeometry args={[h * 0.028, h * 0.26, 4, 10]} />
+        <mesh position={[0, h * 0.67, 0]}>
+          <capsuleGeometry args={[h * 0.085, h * 0.19, 6, 16]} />
           <meshStandardMaterial color={colors.shirt} roughness={0.8} />
         </mesh>
-      ))}
 
-      {[-1, 1].map((side) => (
-        <mesh key={`hand${side}`} position={[side * h * 0.128, h * 0.5, 0]}>
-          <sphereGeometry args={[h * 0.026, 10, 10]} />
-          <meshStandardMaterial color={SKIN} roughness={0.7} />
-        </mesh>
-      ))}
+        {[-1, 1].map((side) => (
+          <mesh
+            key={`arm${side}`}
+            position={[side * h * 0.115, h * 0.66, 0]}
+            rotation={[0, 0, side * 0.06]}
+          >
+            <capsuleGeometry args={[h * 0.028, h * 0.26, 4, 10]} />
+            <meshStandardMaterial color={colors.shirt} roughness={0.8} />
+          </mesh>
+        ))}
+
+        {[-1, 1].map((side) => (
+          <mesh key={`hand${side}`} position={[side * h * 0.128, h * 0.5, 0]}>
+            <sphereGeometry args={[h * 0.026, 10, 10]} />
+            <meshStandardMaterial color={SKIN} roughness={0.7} />
+          </mesh>
+        ))}
+      </group>
 
       <mesh position={[0, h * 0.875, 0]}>
         <cylinderGeometry args={[h * 0.026, h * 0.03, h * 0.05, 12]} />
@@ -144,6 +148,7 @@ function SubjectMesh({ subject }: { subject: SubjectElement }) {
           rotationY={subject.rotation * DEG}
           heightCm={subject.heightCm}
           tags={entry.tags}
+          bodyType={subject.bodyType}
         />
       </Suspense>
     </ModelErrorBoundary>
@@ -157,12 +162,14 @@ function EnhancedGlbSubject({
   rotationY,
   heightCm,
   tags = [],
+  bodyType,
 }: {
   url: string;
   position: [number, number, number];
   rotationY: number;
   heightCm: number;
   tags?: string[];
+  bodyType?: SubjectElement["bodyType"];
 }) {
   const gltf = useLoader(GLTFLoader, url);
   const hasOculos = tags?.includes("oculos");
@@ -233,7 +240,7 @@ function EnhancedGlbSubject({
   }, [gltf, heightCm, hasOculos, hasAcessorios]);
 
   return (
-    <group position={position} rotation={[0, rotationY, 0]}>
+    <group position={position} rotation={[0, rotationY, 0]} scale={[bodyWidthFactor(bodyType), 1, bodyWidthFactor(bodyType)]}>
       <group scale={fitted.scale} position={fitted.offset}>
         <primitive object={fitted.clone} />
       </group>

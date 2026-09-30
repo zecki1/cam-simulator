@@ -1,4 +1,9 @@
-import type { CameraElement, StudioElement, SubjectElement } from "../types/videoStudio";
+import type {
+  BodyType,
+  CameraElement,
+  StudioElement,
+  SubjectElement,
+} from "../types/videoStudio";
 import { distanceCm } from "./format";
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -244,6 +249,16 @@ export function perspectiveLabel(bearingDeg: number): string {
   if (b >= 135) return "costas (contraluz)";
   if (bearingDeg > 0) return "perfil (lado esquerdo)";
   return "perfil (lado direito)";
+}
+
+/**
+ * Fator de largura (x/z) do corpo conforme o biotipo. Usado pela malha
+ * procedural e pelo GLB do participante (altura continua igual).
+ */
+export function bodyWidthFactor(bodyType?: BodyType): number {
+  if (bodyType === "magro") return 0.85;
+  if (bodyType === "gordo") return 1.2;
+  return 1;
 }
 
 /**

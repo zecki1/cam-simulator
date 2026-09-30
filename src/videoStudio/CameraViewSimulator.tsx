@@ -72,6 +72,7 @@ export default function CameraViewSimulator() {
 
   // Modo livre "fantasma" (WASD): renderizado dentro do Canvas (StudioScene3D)
   const showGhost = view === "perspectiva";
+  const ghost = useVideoStudio((s) => s.ghost);
 
   const panRef = useRef<{
     pointerId: number;
@@ -535,6 +536,30 @@ export default function CameraViewSimulator() {
             </text>
           </g>
         </svg>
+
+        {/* HUD do modo fantasma: posição/velocidade em tempo real */}
+        {showGhost && (
+          <Box
+            position="absolute"
+            top={2}
+            left={2}
+            bg="rgba(15, 20, 25, 0.75)"
+            color="white"
+            px={3}
+            py={1.5}
+            rounded="md"
+            fontSize="xs"
+            fontWeight="semibold"
+            zIndex={5}
+            pointerEvents="none"
+          >
+            👻 Fantasma · X {formatNumber(ghost.position[0] / 100, 2, " m")} · Y{" "}
+            {formatNumber(-ghost.position[2] / 100, 2, " m")} · altura{" "}
+            {formatNumber(ghost.position[1] / 100, 2, " m")} ·{" "}
+            {formatNumber(ghost.speed, 0, " cm/s")} — clique para capturar o
+            mouse
+          </Box>
+        )}
       </Box>
 
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={2}>

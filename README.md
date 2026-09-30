@@ -58,7 +58,7 @@ Detalhamento completo, critérios de aceite e métricas em **[PLANEJAMENTO.md](.
 | # | Etapa | Esforço | Status |
 |---|---|---|---|
 | 1 | Assets 3D `.glb` (importação, catálogo, auto-fit, fallback) | 2–3 dias | ✅ **concluída** |
-| 2 | Biotipos do apresentador (homem/mulher, sentado, porte, óculos, cor da camisa) | 2 dias | ⬜ pendente |
+| 2 | Biotipos do apresentador (homem/mulher, sentado, porte, óculos, cor da camisa) | 2 dias | ✅ **concluída** |
 | 3 | Reflexos realistas (Environment map em óculos/brincos/relógio) | 1 dia | ✅ **concluída** |
 | 4 | Sombras universais (toda luz projeta sombra, queda com distância) | 0,5–1 dia | ✅ **concluída** |
 | 5 | Modo perspectiva "fantasma" (WASD + mouse) | 1 dia | ✅ **concluída** |
@@ -66,7 +66,7 @@ Detalhamento completo, critérios de aceite e métricas em **[PLANEJAMENTO.md](.
 | 7 | Nova página: **Bancada de Áudio e Vídeo** (patchbay + mesa de vídeo + controle das 2 PTZ) | 2–3 dias | ⬜ pendente |
 | 8 | Testes e validação das etapas acima | 1 dia | ⬜ pendente |
 
-**Progresso: 5/8 etapas concluídas · Etapa 6 parcial (modelos de câmera + pan + anatomia ✓)**
+**Progresso: 6/8 etapas concluídas · Etapa 6 parcial (modelos de câmera + pan + anatomia ✓)**
 
 ---
 
@@ -300,7 +300,7 @@ tips (id, user_id, title, body, category, status, created_at)
 | 11 | **Modo Fantasma (WASD)** | Free-fly com pointer lock, HUD, colisão paredes, "Possuir PTZ" | 2 dias | ✅ **concluída** |
 | 12 | **Colisão na Planta** | Bounding boxes 2D, snap anti-sobreposição, zonas de exclusão | 1–2 dias | ✅ **concluída** |
 | 13 | **Environment Map + Reflexos** | `<Environment>` + Lightformers por luz, materiais físicos (óculos, metal) | 2 dias | ✅ **concluída** |
-| 14 | **Personagem Avançado** | Pose, biotipo, acessórios, override cor roupa, expressões | 3 dias |
+| 14 | **Personagem Avançado** | Pose, biotipo, acessórios, override cor roupa, expressões | 3 dias | ✅ **concluída** |
 | 15 | **Sombras Físicas + Queda** | decay=2 opcional, PCFSoftShadowMap, bias por tipo, budget 8 | 1 dia | ✅ **concluída** |
 | 16 | **Customização Sala** | Cor piso/paredes/teto, textura, refletividade | 1 dia | ✅ **concluída** |
 | 17 | **Tooltips + Edição Inline** | Hover tooltip, menu radial, painel Inspect, Alt+arrasta clonar | 1–2 dias |

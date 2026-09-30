@@ -12,15 +12,18 @@ import ConfigPanel from "./ConfigPanel";
 import { useVideoStudio, type ToggleFlag } from "../store/videoStudioStore";
 import { exportCameraViewPng, exportTopViewPng } from "./exportImage";
 
+
 const TOGGLES: { flag: ToggleFlag; label: string }[] = [
   { flag: "showGrid", label: "Grade" },
   { flag: "showDistances", label: "Distâncias (m)" },
   { flag: "showBeams", label: "Feixes de luz" },
   { flag: "snapToGrid", label: "Encaixe na grade" },
+  { flag: "shadowsEnabled", label: "Sombras" },
+  { flag: "shadowsDefaultOn", label: "Sombras p/ novas luzes" },
 ];
 
 export default function VideoStudioPage() {
-  const { view, setView, toggle, showGrid, showDistances, showBeams, snapToGrid } =
+  const { view, setView, toggle, showGrid, showDistances, showBeams, snapToGrid, shadowsEnabled, shadowsDefaultOn } =
     useVideoStudio();
 
   const borderColor = useColorModeValue("gray.200", "gray.600");
@@ -50,6 +53,8 @@ export default function VideoStudioPage() {
     showDistances,
     showBeams,
     snapToGrid,
+    shadowsEnabled,
+    shadowsDefaultOn,
   };
 
   return (
@@ -84,6 +89,14 @@ export default function VideoStudioPage() {
           onClick={() => setView("camera")}
         >
           Visão da câmera
+        </Button>
+        <Button
+          size="sm"
+          variant={view === "perspectiva" ? "solid" : "outline"}
+          colorScheme="purple"
+          onClick={() => setView("perspectiva")}
+        >
+          Perspectiva (WASD)
         </Button>
 
         <Box w="1px" h="6" bg={borderColor} mx={1} />

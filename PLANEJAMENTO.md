@@ -2,7 +2,7 @@
 
 > **Objetivo:** transformar o cam-shadow-simulator num simulador de estúdio de vídeo próximo do real: assets 3D (incluindo modelos do Blender), biotipos de apresentador com reflexos realistas, sombras universais, câmera livre estilo "fantasma", controles completos de câmera (zoom, rotação, foco) e uma nova página "Bancada de Áudio e Vídeo".
 >
-> **Stack:** Vite + React 18 + TypeScript (strict) · three.js 0.169 · @react-three/fiber 8 · Zustand 5 · Chakra UI 2 · testes `node:test` + Playwright (`check-e2e.mjs`)
+> **Stack:** Vite + React 18 + TypeScript (strict) · three.js 0.169 · @react-three/fiber 8 · Zustand 5 · Chakra UI 2 · testes **Vitest 2** + Playwright (`check-e2e.mjs`)
 >
 > **Regras de navegação:** sem react-router — abas via `useState` em `src/App.tsx` (`"dof" | "studio" | "av"`)
 >
@@ -14,54 +14,48 @@
 
 | Item | Situação hoje |
 |---|---|
-| Modelos 3D | 100% procedurais (`capsuleGeometry`, `boxGeometry`...), zero `.glb` |
-| Dependências 3D | `three` + `@react-three/fiber` — **sem drei**, sem GLTFLoader |
-| Câmera da cena | POV fixo da câmera PTZ ativa; sem OrbitControls, sem free-fly |
-| Sombras | Budget de **4 luzes** com `castShadow`; `decay={0}` (luz não cai com distância) |
-| Zoom/foco | Inexistentes no 3D; DoF calculado só em 2D (`cameraMath.computeDof`) |
-| Personagem | `Character` procedural (`StudioScene3D.tsx:47-128`), escala por `heightCm`, sem biotipos |
-| Reflexos | Materiais `meshStandardMaterial` simples, sem env map — nada de brilho especular real |
-| Páginas | 2 abas: "Profundidade de campo" + "Estúdio de vídeo" |
+| Modelos 3D | **16 arquivos `.glb`** em `src/assets/models/` (personagens, câmeras, luzes, fundos) + geometria procedural fallback |
+| Dependências 3D | `three` + `@react-three/fiber` — **sem drei**; `GLTFLoader` direto via `useLoader` |
+| Câmera da cena | POV fixo da câmera PTZ ativa; pan/tilt por arraste (sem OrbitControls); **modo fantasma planejado (Etapa 5)** |
+| Sombras | Budget de **4 luzes** com `castShadow`; `decay={0}` (luz não cai com distância); GLBs recebem/projetam |
+| Zoom/foco | **Parcial**: zoom/focal no painel + `computeDof` em 2D; foco manual e bokeh no 3D pendentes (Etapa 6) |
+| Personagem | GLBs substituíveis (catálogo `glbCatalog.ts`); campo `glbModelId` em `BaseElement`; escala por `heightCm`; 10 biotipos disponíveis |
+| Reflexos | Materiais `meshStandardMaterial` simples, sem env map — planejado na Etapa 3 |
+| Páginas | 2 abas: "Profundidade de campo" + "Estúdio de vídeo"; futura "av" (Etapa 7) |
 | Persistência | `localStorage` (`cam-shadow-video-presets`) |
 
 **Backlog já tipado (não implementado):** `src/types/index.ts` (`ViewportState {zoom, pan}`, `LightingPreset`, `StudioProject`) e `src/types/studio.ts` (`CameraMovement`, `AudioSetup`, `TimelineEvent`).
 
 ---
 
-## 1. Assets 3D — GLB + importação do Blender
+## 1. Assets 3D — GLB + catálogo + auto-fit (✅ **CONCLUÍDA**)
 
-**Esforço:** 2–3 dias · **Prioridade:** alta
+**Esforço real:** 2 dias · **Status:** concluída em 30/09/2026
 
-- [ ] Instalar `@react-three/drei` ^9 (compatível com fiber 8)
-- [ ] Criar `public/models/` (+ subpasta `characters/`)
-- [ ] Criar `src/videoStudio/assets/catalog.ts`
-  - registro: `id → { file, name, scaleCm, defaultRotation, elementType, fallbackProc? }`
-  - função `loadModel(id)` com `useGLTF` e **fallback** para geometria procedural se o arquivo faltar (erro amigável no console/UI)
-- [ ] Novo campo `modelId?: string` nos tipos de elemento (`src/types/videoStudio.ts`)
-- [ ] Painel ConfigPanel: seção "Adicionar objeto 3D" listando o catálogo (miniaturas/nomes)
-- [ ] Bounding box automática → drag/clamp na sala e snap da planta baixa continuam funcionando (`StudioTopView.tsx`)
-- [ ] Marcar `castShadow/receiveShadow` em todo GLB carregado (reaproveitar `useShadowFlags`)
-- [ ] Modelos iniciais livres (CC0): cadeira, sofá, cyclorama/fundo, painel acústico detalhado, PTZ realista, softbox/LED panel, monitor/TV, planta, mesa redonda, podium, tapete
-- [ ] *(Fase 2)* Compressão DRACO/KTX2 via `gltf-transform` no build
+**O que foi feito (diferente do planejado original):**
 
-### Guia de exportação do Blender (colar no README do projeto)
+- [x] Catálogo puro em `src/videoStudio/glbCatalog.ts` (dados sem import de asset — testável) + `src/videoStudio/glbModels.ts` (URLs Vite `?url`)
+- [x] Tipos: `GlbKind = "personagem" | "camera" | "tripe" | "luz" | "fundo"` com `anchor: "chao" | "topo"`, `fitCm`, `yawOffsetDeg`
+- [x] Campo `glbModelId?: string` em `BaseElement` (`src/types/videoStudio.ts`)
+- [x] Select "Modelo 3D (GLB)" no ConfigPanel (seção comum para todos os elementos)
+- [x] Auto-fit genérico `fitGltfObject` (`gltfFit.ts`): centraliza XZ, escala por `heightCm` ou `fitCm`, ancora pés (`chao`) ou centro (`topo`)
+- [x] Componentes reutilizáveis: `GlbModel`, `ModelErrorBoundary`, `useShadowFlags` (`GlbModelView.tsx`)
+- [x] Fallback procedural via `ModelErrorBoundary` + `Suspense` → geometria procedural se GLB falhar
+- [x] **Sombras** em todos os GLBs via `markShadowFlags` + `useShadowFlags`
+- [x] **Culling por zona de visão**: `isInCameraCone` aplicado em `renderElement` + `LightRig { inZone }`
+- [x] **Correção de espelhamento**: planta +y = −Z mundo; `cameraAimPoint.z = −pos.y`, `aimYaw = atan2(dx, −dy)`, todas posições `[x,0,−y]`
+- [x] **16 GLBs catalogados** em `src/assets/models/`:
+  - Personagens (10): `homem` (apresentador padrão), `mulher` (apresentadora), + 8 variações (cinza, preto, branco, jaqueta, bikini...)
+  - Câmera: `canon_60d` (corpo, `kind: "camera"`, `anchor: "topo"`, `fitCm: 24`), `tripe_camera` (tripé+câmera GLB completo, `kind: "tripe"`)
+  - Luz: `spot_luz` (refletor, `kind: "luz"`)
+  - Fundo: `fundo_verde` (cyclorama chroma, `kind: "fundo"`)
+- [x] **Chroma key (fundo verde)**: elemento `ChromaKeyElement { widthCm, heightCm, color, receiveShadows }` + GLB `fundo_verde` com fallback procedural + toggle "Receber sombras"
+- [x] **Luzes com GLB**: `LightRig` renderiza `Spot-Luz.glb` (kind "luz") no lugar do suporte procedural; luz real + cone mantidos; rotação `yaw` em direção ao alvo
+- [x] **Anatomia da câmera** (`CameraAnatomy.tsx`): modal com Canon 60D GLB, 7 pins clicáveis (lente, diafragma, sensor, obturador, ISO, visor, WB) ligando cada parte ao campo do painel; drag para girar
+- [x] **Testes**: catálogo GLB, culling, preset `glbModelId: "homem"` — 28 testes Vitest verdes
+- [x] Migração `node:test` → **Vitest 2** (`vitest.config.ts`, scripts `test`/`test:watch`)
 
-```
-1. Escala: 1 unidade = 1 metro (Scene Properties > Units > Metric)
-2. Aplicar transformações: Ctrl+A > All Transforms
-3. Eixo: modelo de frente para -Z, para cima = +Y (glTF converter cuida disso)
-4. Nomear as meshes de material (ex.: "shirt", "skin", "hair") — permite override de cor no app
-5. Export > glTF 2.0:
-   - Format: glTF Binary (.glb)
-   - Include > Selected Objects (se quiser só o objeto)
-   - Transform > +Y Up ✓
-   - Data > Apply Modifiers ✓, Cameras/Lights ✗ (a menos que queira)
-   - Compression > Draco (opcional, reduz muito o tamanho)
-6. Salvar em cam-shadow-simulator/public/models/<nome>.glb
-7. Registrar em src/videoStudio/assets/catalog.ts
-```
-
-**Critérios de aceite:** `.glb` do Blender aparece na cena, arrasta/rotaciona na planta, projeta sombra e some com fallback amigável se deletado do disco.
+**Critérios de aceite ATENDIDOS:** `.glb` aparece na cena, arrasta/rotaciona na planta, projeta/recebe sombra, fallback procedural se GLB faltar, select "Modelo 3D" funciona em todos os elementos, culling por cone validado (0.0 diff), espelhamento corrigido (Playwright: B esquerda x=0.2, direita x=0.85, atrás null).
 
 ---
 
@@ -156,13 +150,21 @@ shirtColor: string;   // color picker, default por role
 
 ## 6. Simulador 100% de câmera (zoom, rotação, foco)
 
-**Esforço:** 2 dias · **Prioridade:** alta
+**Esforço:** 2 dias · **Prioridade:** alta · **Status:** 🔄 em andamento (modelos, rotação, exposição, sala ✓)
 
-- [ ] **Zoom óptico:** slider de focal 18–300 mm (usa `LensSpecs` existente) → `verticalFovDeg` já calculado; + **zoom digital** (corta o sensor, simula crop)
-- [ ] **Rotação (pan/tilt):** sliders yaw/pitch da câmera ativa + **arrastar na visão de câmera** para girar; girar manual limpa `targetId` (mesma regra da planta baixa); botão "Reenquadrar no alvo"
+- [x] **Modelos de câmera:** catálogo `src/videoStudio/cameraModels.ts` com **Canon EOS SL2, Canon EOS T7i, Sony Handcam (FDR-AX43A), PTZ 20×** — corpo define sensor (mm/crop/CoC), ISO, fps, resolução, codec e objetivas; aplicados via `applyCameraModel()` (preserva posição/alvo)
+- [x] **Painel de configuração da câmera** (direita): Modelo + ficha técnica, Objetiva, **Zoom (focal) em slider** por faixa real da lente (ex.: kit 18–55 mm), Abertura limitada ao máximo da lente, ISO/fps do modelo, **Filtro ND**, alvo, POV
+- [x] **Rotação:** slider do painel gira a câmera selecionada + **arrastar na visão da câmera (pan)** — horizontal gira, assume direção manual (solta `targetId`), guarda anti-clique após arraste (`interact.ts`)
+- [x] **Sincronização POV ↔ painel:** selecionar câmera (dropdown/CLI/Objeto) → ela vira POV *e* aparece no painel; trocar POV → seleciona a câmera (`select`/`setActiveCamera` no store)
+- [ ] **Zoom digital** (corta o sensor, simula crop)
+- [ ] **Tilt:** limitar pitch no pan/tilt e botão "Reenquadrar no alvo"
+- [x] **Exposição:** ISO/obturador/abertura/ND → `toneMappingExposure` do Canvas (módulo `exposure.ts`, referência ISO 400 · 1/50 · f/4); alerta "imagem subexposta/superexposta" (±1 EV) no painel e no overlay da visão da câmera
+- [x] **Balanço de branco:** Kelvin da câmera (2800–7500 K) → ganhos RGB aplicados a todas as luzes do render (5600 K = neutro); rótulo corrigido para "Balanço de branco"
+- [x] **Sala editável:** seção "Sala (planta)" no painel (largura/profundura/altura em m, com limites); `setRoom` no store; `loadLearningPreset` restaura o padrão 7 × 5 m
+- [x] **Layout do preset:** câmera A ao lado da mesa, B ao lado da principal, key/fill na frente do participante e back/ambient atrás — as 4 luzes ficam fora do enquadramento das 2 câmeras
+- [x] **GLBs organizados:** `personagem-man.glb` e `camera60d-teste.glb` movidos para `src/assets/models/`
 - [ ] **Foco:** slider `focusDistanceCm` manual (modo MF) ou "autofocus no alvo"; alimenta `computeDof` (near/far/hiperfocal) — os 8 Metrics da `CameraViewSimulator` passam a refletir o foco manual
 - [ ] **Bokeh no 3D:** instalar `@react-three/postprocessing` (v2) + `BokehEffect` ligado ao modo MF/foco manual
-- [ ] **Exposição:** expor ISO/shutter/ND/já tipados em `CameraSettings` no painel → mapear para `toneMappingExposure` do Canvas (avisar "imagem subexposta/superexposta")
 - [ ] **Extras (backlog):** zebra/false color, peaking de foco, aspect frame guides (2.39:1, 1:1)
 - [ ] Exportar PNG continua funcionando (`exportImage.ts`)
 
@@ -215,19 +217,19 @@ shirtColor: string;   // color picker, default por role
 
 | # | Etapa | Esforço | Status | Concluída em |
 |---|---|---|---|---|
-| 1 | Assets GLB + guia Blender | 2–3 dias | ⬜ pendente | |
+| 1 | Assets GLB + catálogo + auto-fit + fallback | 2 dias | ✅ **concluída** | 30/09/2026 |
 | 2 | Biotipos do apresentador | 2 dias | ⬜ pendente | |
 | 3 | Reflexos (Environment map) | 1 dia | ⬜ pendente | |
 | 4 | Sombras universais | 0,5–1 dia | ⬜ pendente | |
 | 5 | Modo fantasma (WASD) | 1 dia | ⬜ pendente | |
-| 6 | Simulador de câmera | 2 dias | ⬜ pendente | |
+| 6 | Simulador 100% de câmera (zoom, pan/tilt, foco, anatomia) | 2 dias | 🔄 **parcial** | modelos+pan+anatomia ✓ 30/09 |
 | 7 | Bancada de Áudio e Vídeo | 2–3 dias | ⬜ pendente | |
 | 8 | Testes e validação | 1 dia | ⬜ pendente | |
-| | **Total** | **~11–14 dias** | **0/8** | |
+| | **Total** | **~11–14 dias** | **1/8** | |
 
 **Ordem de execução:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 (cada etapa só inicia após o gate da anterior).
 
-**Progresso geral:** `0 / 8` etapas · `0%`
+**Progresso geral:** `1 / 8` etapas concluídas · Etapa 6 parcial (modelos GLB, catálogo, pan/tilt, exposição/WB, sala, preset, chromakey, anatomia ✓) · gate Etapa 1: `lint`+`build`+`test` ✓
 
 ---
 

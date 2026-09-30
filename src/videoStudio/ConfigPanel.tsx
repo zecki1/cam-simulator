@@ -30,6 +30,7 @@ import {
   type AcousticPanelElement,
   type BoomMicElement,
   type CameraElement,
+  type ChromaKeyElement,
   type ComputerElement,
   type LightElement,
   type LightKind,
@@ -39,6 +40,15 @@ import {
   type TableElement,
 } from "../types/videoStudio";
 import { buildNativeSelectStyles } from "../selectStyles";
+import CameraAnatomy from "./CameraAnatomy";
+import { glbOptionsFor } from "./glbModels";
+import {
+  applyCameraModel,
+  apertureOptionsFor,
+  cameraModelById,
+  cameraModelOptions,
+} from "./cameraModels";
+import { exposureInfo, exposureStatusColor } from "./exposure";
 import { distanceCm, formatMeters } from "./format";
 import { normalizeDeg, rotationToward } from "./cameraMath";
 
@@ -50,7 +60,6 @@ const SENSORS = [
 ];
 
 const FOCAL_OPTIONS = [8, 14, 18, 24, 28, 35, 50, 85, 105, 135, 200, 300];
-const APERTURE_OPTIONS = [1.2, 1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
 const ISO_OPTIONS = [100, 200, 400, 800, 1600, 3200];
 const FPS_OPTIONS = [24, 25, 30, 60];
 const SHUTTER_OPTIONS = [24, 30, 50, 60, 125];
@@ -190,6 +199,7 @@ const PALETTE: { type: StudioElementType; label: string; kind?: LightKind }[] = 
   { type: "table", label: "🪑 Mesa" },
   { type: "computer", label: "💻 Computador" },
   { type: "acoustic_panel", label: "🔇 Painel acústico" },
+  { type: "chromakey", label: "🟩 Chroma key (fundo verde)" },
   { type: "boom_mic", label: "🎙 Boom" },
 ];
 
@@ -210,9 +220,20 @@ export default function ConfigPanel() {
     loadCustomPreset,
     activeCameraId,
     setActiveCamera,
+    room,
+    setRoom,
+    shadowsEnabled,
+    shadowsDefaultOn,
+    shadowMapSize,
+    shadowBudget,
+    setShadowsEnabled,
+    setShadowsDefaultOn,
+    setShadowMapSize,
+    setShadowBudget,
   } = useVideoStudio();
 
   const [presetName, setPresetName] = useState("");
+  const [anatomyOpen, setAnatomyOpen] = useState(false);
 
   function handleSavePreset() {
     saveCustomPreset(presetName);
@@ -343,6 +364,19 @@ export default function ConfigPanel() {
             Mirando em alvo — ao girar, a câmera/feixe assume direção manual.
           </Text>
         ) : null}
+        <Field label="Modelo 3D">
+          <SelectField
+            ariaLabel="Modelo 3D (GLB)"
+            value={el.glbModelId ?? ""}
+            options={[
+              { value: "", label: "Procedural (padrão)" },
+              ...glbOptionsFor(),
+            ]}
+            onChange={(glbModelId) =>
+              updateElement(el.id, { glbModelId: glbModelId || undefined })
+            }
+          />
+        </Field>
       </>
     );
 
@@ -387,9 +421,60 @@ export default function ConfigPanel() {
         const target = c.targetId
           ? elements.find((t) => t.id === c.targetId)
           : null;
+        const model = cameraModelById(c.modelId);
+        const activeLens = model
+          ? model.lenses.find((l) => l.label === c.lens.model) ??
+            model.lenses[0]
+          : null;
+        const isoOptions = model ? model.isoOptions : ISO_OPTIONS;
+        const fpsOptions = model ? model.fpsOptions : FPS_OPTIONS;
+        const apertureOptions = apertureOptionsFor(activeLens);
+        const fmt1 = (n: number) => n.toFixed(1).replace(".", ",");
+        const expo = exposureInfo(c);
         return (
           <>
             {common}
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="blue"
+              mb={3}
+              w="100%"
+              onClick={() => setAnatomyOpen(true)}
+            >
+              🩺 Anatomia da câmera (o que é cada parte)
+            </Button>
+            <CameraAnatomy
+              isOpen={anatomyOpen}
+              onClose={() => setAnatomyOpen(false)}
+            />
+            <Field label="Modelo">
+              <SelectField
+                ariaLabel="Modelo da câmera"
+                value={c.modelId ?? ""}
+                options={cameraModelOptions}
+                onChange={(modelId) => {
+                  const m = cameraModelById(modelId || null);
+                  if (!m) {
+                    updateElement(c.id, { modelId: undefined });
+                    return;
+                  }
+                  updateElement(c.id, applyCameraModel(c, m));
+                }}
+              />
+            </Field>
+            {model && (
+              <Text fontSize="xs" color={muted} mt={-1} mb={2}>
+                Sensor {model.sensor.name} · {fmt1(model.sensor.width)}×
+                {fmt1(model.sensor.height)} mm · crop ×{fmt1(model.sensor.cropFactor)} ·
+                CoC {model.sensor.coc} mm
+                <br />
+                {model.resolution} · {model.codec} · ISO {model.isoOptions[0]}–
+                {model.isoOptions[model.isoOptions.length - 1]}
+                <br />
+                {model.notes}
+              </Text>
+            )}
             <Field label="Suporte">
               <SelectField
                 ariaLabel="Tipo de suporte"
@@ -412,21 +497,64 @@ export default function ConfigPanel() {
               display={(v) => formatMeters(v, 2)}
               onChange={(heightCm) => updateElement(c.id, { heightCm })}
             />
-            <Field label="Lente (focal)">
-              <SelectField
-                ariaLabel="Distância focal"
-                value={c.lens.focalLength}
-                options={FOCAL_OPTIONS.map((f) => ({ value: f, label: `${f} mm` }))}
-                onChange={(f) =>
-                  updateElement(c.id, { lens: { ...c.lens, focalLength: Number(f) } })
-                }
-              />
-            </Field>
+            {model && activeLens ? (
+              <>
+                <Field label="Objetiva">
+                  <SelectField
+                    ariaLabel="Objetiva"
+                    value={activeLens.label}
+                    options={model.lenses.map((l) => ({
+                      value: l.label,
+                      label: l.label,
+                    }))}
+                    onChange={(label) =>
+                      updateElement(c.id, applyCameraModel(c, model, label))
+                    }
+                  />
+                </Field>
+                {activeLens.focalMax > activeLens.focalMin ? (
+                  <SliderField
+                    label="Zoom (focal)"
+                    value={Math.min(
+                      Math.max(c.lens.focalLength, activeLens.focalMin),
+                      activeLens.focalMax
+                    )}
+                    min={activeLens.focalMin}
+                    max={activeLens.focalMax}
+                    step={0.5}
+                    display={(v) => `${v} mm`}
+                    onChange={(focalLength) =>
+                      updateElement(c.id, { lens: { ...c.lens, focalLength } })
+                    }
+                  />
+                ) : (
+                  <Field label="Focal">
+                    <Text fontSize="sm">{c.lens.focalLength} mm (focal fixa)</Text>
+                  </Field>
+                )}
+              </>
+            ) : (
+              <Field label="Lente (focal)">
+                <SelectField
+                  ariaLabel="Distância focal"
+                  value={c.lens.focalLength}
+                  options={FOCAL_OPTIONS.map((f) => ({
+                    value: f,
+                    label: `${f} mm`,
+                  }))}
+                  onChange={(f) =>
+                    updateElement(c.id, {
+                      lens: { ...c.lens, focalLength: Number(f) },
+                    })
+                  }
+                />
+              </Field>
+            )}
             <Field label="Abertura">
               <SelectField
                 ariaLabel="Abertura"
                 value={c.lens.currentAperture}
-                options={APERTURE_OPTIONS.map((a) => ({
+                options={apertureOptions.map((a) => ({
                   value: a,
                   label: `f/${a}`,
                 }))}
@@ -437,22 +565,24 @@ export default function ConfigPanel() {
                 }
               />
             </Field>
-            <Field label="Sensor">
-              <SelectField
-                ariaLabel="Sensor"
-                value={c.sensor.name}
-                options={SENSORS.map((s) => ({ value: s.name, label: s.name }))}
-                onChange={(name) => {
-                  const sensor = SENSORS.find((s) => s.name === name);
-                  if (sensor) updateElement(c.id, { sensor });
-                }}
-              />
-            </Field>
+            {!model && (
+              <Field label="Sensor">
+                <SelectField
+                  ariaLabel="Sensor"
+                  value={c.sensor.name}
+                  options={SENSORS.map((s) => ({ value: s.name, label: s.name }))}
+                  onChange={(name) => {
+                    const sensor = SENSORS.find((s) => s.name === name);
+                    if (sensor) updateElement(c.id, { sensor });
+                  }}
+                />
+              </Field>
+            )}
             <Field label="ISO">
               <SelectField
                 ariaLabel="ISO"
                 value={c.settings.iso}
-                options={ISO_OPTIONS.map((i) => ({ value: i, label: String(i) }))}
+                options={isoOptions.map((i) => ({ value: i, label: String(i) }))}
                 onChange={(iso) =>
                   updateElement(c.id, {
                     settings: { ...c.settings, iso: Number(iso) },
@@ -479,7 +609,7 @@ export default function ConfigPanel() {
               <SelectField
                 ariaLabel="Frame rate"
                 value={c.settings.frameRate ?? 30}
-                options={FPS_OPTIONS.map((f) => ({ value: f, label: `${f} fps` }))}
+                options={fpsOptions.map((f) => ({ value: f, label: `${f} fps` }))}
                 onChange={(f) =>
                   updateElement(c.id, {
                     settings: { ...c.settings, frameRate: Number(f) },
@@ -488,7 +618,7 @@ export default function ConfigPanel() {
               />
             </Field>
             <SliderField
-              label="Balance de branco"
+              label="Balanço de branco"
               value={c.settings.whiteBalance}
               min={2800}
               max={7500}
@@ -498,6 +628,27 @@ export default function ConfigPanel() {
                 updateElement(c.id, { settings: { ...c.settings, whiteBalance } })
               }
             />
+            <Field label="Filtro ND">
+              <SelectField
+                ariaLabel="Filtro ND"
+                value={c.settings.ndFilter ?? 0}
+                options={[
+                  { value: 0, label: "— sem ND —" },
+                  { value: 1, label: "ND 1 stop" },
+                  { value: 2, label: "ND 2 stops" },
+                  { value: 3, label: "ND 3 stops" },
+                  { value: 4, label: "ND 4 stops" },
+                ]}
+                onChange={(nd) =>
+                  updateElement(c.id, {
+                    settings: { ...c.settings, ndFilter: Number(nd) },
+                  })
+                }
+              />
+            </Field>
+            <Text fontSize="xs" mb={2} color={exposureStatusColor(expo.status)}>
+              Exposição: <b>{expo.evLabel}</b> — {expo.description}
+            </Text>
             <Field label="Mirar em">
               <SelectField
                 ariaLabel="Alvo da câmera"
@@ -619,6 +770,14 @@ export default function ConfigPanel() {
                 onChange={(e) => updateElement(l.id, { castShadow: e.target.checked })}
               />
               <Text fontSize="sm">Gerar sombras</Text>
+            </Flex>
+            <Flex align="center" gap={2} mb={2}>
+              <Switch
+                size="sm"
+                isChecked={l.physicalFalloff ?? false}
+                onChange={(e) => updateElement(l.id, { physicalFalloff: e.target.checked })}
+              />
+              <Text fontSize="sm">Queda realista (inverse square)</Text>
             </Flex>
             {target && (
               <Text fontSize="sm" color={muted} mb={2}>
@@ -744,6 +903,44 @@ export default function ConfigPanel() {
           </>
         );
       }
+
+      case "chromakey": {
+        const c = el as ChromaKeyElement;
+        return (
+          <>
+            {common}
+            <NumberMeters
+              label="Largura"
+              valueCm={c.widthCm}
+              onChange={(widthCm) => updateElement(c.id, { widthCm })}
+            />
+            <SliderField
+              label="Altura do fundo"
+              value={c.heightCm}
+              min={120}
+              max={400}
+              step={5}
+              display={(v) => formatMeters(v, 2)}
+              onChange={(heightCm) => updateElement(c.id, { heightCm })}
+            />
+            <Flex align="center" gap={2} mb={2}>
+              <Switch
+                size="sm"
+                isChecked={c.receiveShadows}
+                onChange={(e) =>
+                  updateElement(c.id, { receiveShadows: e.target.checked })
+                }
+              />
+              <Text fontSize="sm">Receber sombras</Text>
+            </Flex>
+            <Text fontSize="xs" color={muted}>
+              Verde chroma <b>{c.color}</b>. A sombra das luzes suja o fundo
+              e atrapalha o key — desligue "Receber sombras" ou ajuste as
+              luzes para um fundo limpo.
+            </Text>
+          </>
+        );
+      }
     }
   }
 
@@ -770,6 +967,102 @@ export default function ConfigPanel() {
           ]}
           onChange={(id) => select(id || null)}
         />
+      </Box>
+
+      <Divider />
+
+      {/* Tamanho da sala (planta editável) */}
+      <Box>
+        <Text
+          fontSize="xs"
+          fontWeight="semibold"
+          color={muted}
+          textTransform="uppercase"
+          letterSpacing="wider"
+          mb={2}
+        >
+          Sala (planta)
+        </Text>
+        <Flex direction="column" gap={0}>
+          <NumberMeters
+            label="Largura"
+            valueCm={room.widthCm}
+            onChange={(widthCm) => setRoom({ widthCm })}
+          />
+          <NumberMeters
+            label="Profundidade"
+            valueCm={room.lengthCm}
+            onChange={(lengthCm) => setRoom({ lengthCm })}
+          />
+          <NumberMeters
+            label="Altura"
+            valueCm={room.heightCm}
+            onChange={(heightCm) => setRoom({ heightCm })}
+          />
+        </Flex>
+        <Text fontSize="xs" color={muted} mt={-1} mb={1}>
+          Padrão 7 × 5 m — digite qualquer tamanho (ex.: 2 × 3 m).
+        </Text>
+      </Box>
+
+
+      <Divider />
+
+      {/* Configurações de Sombra */}
+      <Box>
+        <Text
+          fontSize="xs"
+          fontWeight="semibold"
+          color={muted}
+          textTransform="uppercase"
+          letterSpacing="wider"
+          mb={2}
+        >
+          Sombras
+        </Text>
+        <Flex direction="column" gap={2}>
+          <Flex align="center" gap={2} mb={1}>
+            <Switch
+              size="sm"
+              isChecked={shadowsEnabled}
+              onChange={(e) => setShadowsEnabled(e.target.checked)}
+            />
+            <Text fontSize="sm">Sombras ativadas (global)</Text>
+          </Flex>
+          <Flex align="center" gap={2} mb={1}>
+            <Switch
+              size="sm"
+              isChecked={shadowsDefaultOn}
+              onChange={(e) => setShadowsDefaultOn(e.target.checked)}
+            />
+            <Text fontSize="sm">Novas luzes com sombra por padrão</Text>
+          </Flex>
+          <Field label="Resolução do Shadow Map">
+            <SelectField
+              ariaLabel="Resolução do Shadow Map"
+              value={shadowMapSize}
+              options={[
+                { value: 1024, label: "1024 (mais rápido)" },
+                { value: 2048, label: "2048 (padrão, ≤3 luzes)" },
+                { value: 4096, label: "4096 (máxima qualidade)" },
+              ]}
+              onChange={(v) => setShadowMapSize(Number(v))}
+            />
+          </Field>
+          <Field label="Budget de sombras">
+            <SelectField
+              ariaLabel="Budget de sombras"
+              value={shadowBudget}
+              options={[
+                { value: 4, label: "4 luzes (legado)" },
+                { value: 8, label: "8 luzes (padrão)" },
+                { value: 12, label: "12 luzes" },
+                { value: 16, label: "16 luzes" },
+              ]}
+              onChange={(v) => setShadowBudget(Number(v))}
+            />
+          </Field>
+        </Flex>
       </Box>
 
       <Divider />

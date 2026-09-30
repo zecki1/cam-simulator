@@ -2,14 +2,95 @@ import { useRef } from "react";
 import { useColorModeValue } from "@chakra-ui/react";
 import { useVideoStudio } from "../store/videoStudioStore";
 import type {
+  AcousticPanelElement,
   CameraElement,
+  ChromaKeyElement,
   LightElement,
   StudioElement,
+  TableElement,
 } from "../types/videoStudio";
 import { distanceCm, formatMeters } from "./format";
 import { horizontalFovDeg } from "./cameraMath";
 
 const DEG = Math.PI / 180;
+
+/** Retorna o bounding box 2D (em cm, planta) de um elemento. */
+function getElementBounds(el: StudioElement): { minX: number; maxX: number; minY: number; maxY: number } {
+  const { position } = el;
+  let halfW = 25; // default radius for unknown elements
+  let halfD = 25;
+
+  switch (el.type) {
+    case "subject": {
+      halfW = 30;
+      halfD = 30;
+      break;
+    }
+    case "camera": {
+      halfW = 40;
+      halfD = 40;
+      break;
+    }
+    case "light": {
+      halfW = 30;
+      halfD = 30;
+      break;
+    }
+    case "table": {
+      const t = el as TableElement;
+      halfW = t.widthCm / 2;
+      halfD = t.depthCm / 2;
+      break;
+    }
+    case "computer": {
+      halfW = 40;
+      halfD = 50;
+      break;
+    }
+    case "acoustic_panel": {
+      const p = el as AcousticPanelElement;
+      halfW = p.widthCm / 2;
+      halfD = 30; // profundidade padrão do painel
+      break;
+    }
+    case "chromakey": {
+      const ck = el as ChromaKeyElement;
+      halfW = ck.widthCm / 2;
+      halfD = 30; // profundidade do fundo
+      break;
+    }
+    case "boom_mic": {
+      halfW = 30;
+      halfD = 30;
+      break;
+    }
+    default: {
+      halfW = 30;
+      halfD = 30;
+    }
+  }
+
+  // Se snapToGrid estiver ativo, arredondar para grade
+  // (o drag já faz isso, mas mantemos consistência)
+  return {
+    minX: position.x - halfW,
+    maxX: position.x + halfW,
+    minY: position.y - halfD,
+    maxY: position.y + halfD,
+  };
+}
+
+/** Verifica se dois elementos colidem (sobreposição de bounding boxes). */
+function elementsCollide(a: StudioElement, b: StudioElement, margin = 5): boolean {
+  const ba = getElementBounds(a);
+  const bb = getElementBounds(b);
+  return !(
+    ba.maxX + margin <= bb.minX ||
+    bb.maxX + margin <= ba.minX ||
+    ba.maxY + margin <= bb.minY ||
+    bb.maxY + margin <= ba.minY
+  );
+}
 
 function headingOf(el: StudioElement, target?: { x: number; y: number }) {
   if (target) {
@@ -216,6 +297,25 @@ function ElementShape({
       );
     }
 
+    case "chromakey": {
+      const el2 = el as Extract<StudioElement, { type: "chromakey" }>;
+      return (
+        <g>
+          <rect
+            x={el2.position.x - el2.widthCm / 2}
+            y={el2.position.y - 6}
+            width={el2.widthCm}
+            height={12}
+            rx={4}
+            fill={el2.color}
+            stroke={outline ?? "#00752A"}
+            strokeWidth={outline ? 4 : 1.5}
+            transform={`rotate(${-el2.rotation} ${el2.position.x} ${el2.position.y})`}
+          />
+        </g>
+      );
+    }
+
     case "boom_mic": {
       const el2 = el as Extract<StudioElement, { type: "boom_mic" }>;
       const target = targetPositionOf(el2);
@@ -269,6 +369,8 @@ function labelOffsetFor(el: StudioElement) {
     case "computer":
       return 30;
     case "acoustic_panel":
+      return 24;
+    case "chromakey":
       return 24;
     case "boom_mic":
       return 30;
@@ -380,8 +482,23 @@ export default function StudioTopView() {
       x = Math.round(x / gridSizeCm) * gridSizeCm;
       y = Math.round(y / gridSizeCm) * gridSizeCm;
     }
+    // Clamp aos limites da sala
     x = Math.min(Math.max(x, 0), room.widthCm);
     y = Math.min(Math.max(y, 0), room.lengthCm);
+
+    // Verificar colisão com outros elementos (exceto o próprio)
+    const movingEl = elements.find((el) => el.id === drag.id);
+    if (movingEl) {
+      const proposedEl = { ...movingEl, position: { x, y } };
+      const hasCollision = elements.some(
+        (other) => other.id !== drag.id && elementsCollide(proposedEl, other, 5)
+      );
+      if (hasCollision) {
+        // Não move se colidir — apenas ignora este frame
+        return;
+      }
+    }
+
     updateElement(drag.id, { position: { x, y } });
   }
 

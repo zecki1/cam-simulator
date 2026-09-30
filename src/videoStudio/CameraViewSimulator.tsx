@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Box,
   Flex,
@@ -9,17 +9,29 @@ import {
 } from "@chakra-ui/react";
 import { useVideoStudio, selectCameras, selectSubjects } from "../store/videoStudioStore";
 import {
+  cameraAimDeg,
+  cameraAimPoint,
   computeDof,
   computeFraming,
   horizontalFovDeg,
+  horizontalOffsetNorm,
   makeProjector,
+  normalizeDeg,
   perspectiveLabel,
   relativeBearingDeg,
   verticalFovDeg,
 } from "./cameraMath";
 import { buildNativeSelectStyles } from "../selectStyles";
+import { markPan } from "./interact";
+import {
+  exposureGain,
+  exposureInfo,
+  exposureStatusColor,
+  whiteBalanceGain,
+} from "./exposure";
 import { formatCm, formatMeters, formatMmAsMeters, formatNumber } from "./format";
 import StudioScene3D from "./StudioScene3D";
+import { GhostControls } from "./GhostControls";
 
 const FRAME_W = 1600;
 const FRAME_H = 900;
@@ -56,8 +68,20 @@ export default function CameraViewSimulator() {
     room,
     selectedId,
     select,
+    updateElement,
+    view,
   } = useVideoStudio();
-  const [subjectId, setSubjectId] = useState<string | null>(null);
+
+  // Ghost controls (ativa apenas no modo perspectiva) - renderizado dentro do Canvas
+  const showGhost = view === "perspectiva";
+
+  const panRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startRot: number;
+    active: boolean;
+  } | null>(null);
+  const [panning, setPanning] = useState(false);
 
   const nativeSelectStyles = useColorModeValue("light", "dark");
   const selectStyles = buildNativeSelectStyles(nativeSelectStyles);
@@ -75,7 +99,9 @@ export default function CameraViewSimulator() {
   const camera =
     cameras.find((c) => c.id === activeCameraId) ?? cameras[0] ?? null;
   const subject =
-    subjects.find((s) => s.id === (subjectId ?? camera?.targetId)) ??
+    (camera?.targetId
+      ? subjects.find((s) => s.id === camera.targetId)
+      : undefined) ??
     subjects[0] ??
     null;
 
@@ -93,9 +119,33 @@ export default function CameraViewSimulator() {
     );
   }
 
-  const framing = computeFraming(camera, subject);
-  const projector = makeProjector(camera, subject);
+  /**
+   * Mira real da câmera: com alvo ("Mirar em") aponta para ele; sem alvo,
+   * segue a rotação manual do tripé (pan horizontal, nível).
+   */
+  const hasTarget =
+    !!camera.targetId && elements.some((el) => el.id === camera.targetId);
+  const aimDeg = cameraAimDeg(camera, elements);
+  const aim = cameraAimPoint(camera, elements);
+  const aimAngleRad = hasTarget ? undefined : 0;
+
+  const framing = computeFraming(camera, subject, aimAngleRad);
+  const projector = makeProjector(camera, subject, aimAngleRad);
   const bearing = relativeBearingDeg(subject, camera);
+
+  /**
+   * Participante no quadro: 0 = centro, ±1 = borda. Com mira manual o
+   * participante se desloca (ou sai) conforme a rotação da câmera.
+   */
+  const xNorm = horizontalOffsetNorm(camera, subject.position, aimDeg);
+  const subjectInFrame = Math.abs(xNorm) <= 1;
+  const frameLabel = subjectInFrame
+    ? framing.framingLabel
+    : "Participante fora do quadro";
+
+  // exposição e balance de branco vêm das configurações da câmera
+  const expo = exposureInfo(camera);
+  const wbGain = whiteBalanceGain(camera.settings.whiteBalance);
 
   const feetY = projector.yPixOf(0, FRAME_H);
   const headY = projector.yPixOf(subject.heightCm, FRAME_H);
@@ -106,7 +156,7 @@ export default function CameraViewSimulator() {
         Math.tan(projector.vFovRad / 2));
 
   const personHeightPx = feetY - headY;
-  const personCenterX = FRAME_W / 2;
+  const personCenterX = (FRAME_W / 2) * (1 + xNorm);
 
   const slantMm =
     Math.hypot(
@@ -129,6 +179,49 @@ export default function CameraViewSimulator() {
   const inFrame = (y: number) => y > -80 && y < FRAME_H + 80;
   const rulerX = personCenterX - 0.32 * Math.max(personHeightPx, 1);
 
+  /**
+   * Panoramática: arrastar horizontalmente na visão da câmera gira a
+   * câmera para os lados (pan). Se ela mirava num alvo, o arraste assume
+   * direção manual — igual ao slider de rotação do painel.
+   */
+  const aimRotation = () => cameraAimDeg(camera, elements);
+
+  const onPanDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    panRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startRot: aimRotation(),
+      active: false,
+    };
+  };
+
+  const onPanMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const p = panRef.current;
+    if (!p || p.pointerId !== e.pointerId) return;
+    const dx = e.clientX - p.startX;
+    if (!p.active) {
+      if (Math.abs(dx) < 5) return;
+      p.active = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setPanning(true);
+      markPan();
+    }
+    // arrastar para a direita gira a câmera para a esquerda
+    const rotation = normalizeDeg(p.startRot - dx * 0.3);
+    updateElement(
+      camera.id,
+      camera.targetId ? { rotation, targetId: null } : { rotation }
+    );
+  };
+
+  const onPanUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.pointerId === e.pointerId) panRef.current = null;
+    setPanning(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
   return (
     <Flex direction="column" gap={3} h="100%">
       <Flex gap={2} align="center" flexWrap="wrap">
@@ -138,6 +231,7 @@ export default function CameraViewSimulator() {
         <Select
           size="sm"
           maxW="260px"
+          aria-label="Câmera da simulação"
           bg={selectStyles.bg}
           color={selectStyles.color}
           borderColor={selectStyles.borderColor}
@@ -162,6 +256,7 @@ export default function CameraViewSimulator() {
         <Select
           size="sm"
           maxW="260px"
+          aria-label="Participante"
           bg={selectStyles.bg}
           color={selectStyles.color}
           borderColor={selectStyles.borderColor}
@@ -170,9 +265,12 @@ export default function CameraViewSimulator() {
           _focus={selectStyles._focus}
           _active={selectStyles._active}
           sx={selectStyles.sx}
-          value={subject.id}
-          onChange={(e) => setSubjectId(e.target.value)}
+          value={camera.targetId ?? ""}
+          onChange={(e) =>
+            updateElement(camera.id, { targetId: e.target.value || null })
+          }
         >
+          <option value="">— Nenhum (direção manual) —</option>
           {subjects.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name} ({formatCm(s.heightCm)})
@@ -215,7 +313,13 @@ export default function CameraViewSimulator() {
         overflow="hidden"
         position="relative"
         role="img"
-        aria-label={`Visão da ${camera.name} — ${framing.framingLabel}, vista ${perspectiveLabel(bearing)}`}
+        aria-label={`Visão da ${camera.name} — ${frameLabel}, vista ${perspectiveLabel(bearing)}`}
+        title="Arraste para os lados para girar a câmera (pan)"
+        onPointerDown={onPanDown}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanUp}
+        onPointerCancel={onPanUp}
+        style={panning ? { cursor: "grabbing" } : undefined}
       >
         {/* ── camada de fundo: parede, chão, linha do olho e guias ── */}
         <svg
@@ -263,11 +367,13 @@ export default function CameraViewSimulator() {
         {/* ── camada 3D: cena completa vista pela câmera ── */}
         <StudioScene3D
           camera={camera}
-          aimSubject={subject}
-          aimHeightCm={projector.aimHeightCm}
+          aim={aim}
           elements={elements}
           room={room}
+          exposure={exposureGain(camera)}
+          wbGain={wbGain}
         />
+        {showGhost && <GhostControls />}
 
         {/* ── camada de overlay: medições e rótulos (sem contorno) ── */}
         <svg
@@ -308,14 +414,15 @@ export default function CameraViewSimulator() {
           )}
 
           {/* marcadores de altura do participante */}
-          {[
-            { y: feetY, label: "Pés · 0,00 m" },
-            {
-              y: headY,
-              label: `Topo da cabeça · ${formatMeters(subject.heightCm, 2)}`,
-            },
-          ].map((m) =>
-            inFrame(m.y) ? (
+          {subjectInFrame &&
+            [
+              { y: feetY, label: "Pés · 0,00 m" },
+              {
+                y: headY,
+                label: `Topo da cabeça · ${formatMeters(subject.heightCm, 2)}`,
+              },
+            ].map((m) =>
+              inFrame(m.y) ? (
               <g key={m.label}>
                 <line
                   x1={0}
@@ -335,7 +442,8 @@ export default function CameraViewSimulator() {
           )}
 
           {/* régua de altura ao lado do participante */}
-          {inFrame(feetY) &&
+          {subjectInFrame &&
+            inFrame(feetY) &&
             inFrame(headY) &&
             (() => {
               const top = Math.max(headY, 0);
@@ -385,7 +493,7 @@ export default function CameraViewSimulator() {
           {/* rótulos do enquadramento (texto cru) */}
           <g>
             <text x={24} y={48} fontSize={32} fontWeight={700} fill={textColor}>
-              {framing.framingLabel}
+              {frameLabel}
             </text>
             <text x={24} y={88} fontSize={24} fontWeight={600} fill={textColor}>
               vista {perspectiveLabel(bearing)} · {formatNumber(bearing, 0, "°")}
@@ -399,6 +507,30 @@ export default function CameraViewSimulator() {
               fill={textColor}
             >
               {camera.lens.focalLength}mm f/{camera.lens.currentAperture}
+            </text>
+            <text
+              x={FRAME_W - 24}
+              y={84}
+              fontSize={22}
+              fontWeight={500}
+              textAnchor="end"
+              fill={textColor}
+            >
+              ISO {camera.settings.iso} · 1/{camera.settings.shutterSpeed} ·{" "}
+              {(camera.settings.ndFilter ?? 0) > 0
+                ? `ND${camera.settings.ndFilter}`
+                : "sem ND"}{" "}
+              · {camera.settings.frameRate ?? 30} fps
+            </text>
+            <text
+              x={FRAME_W - 24}
+              y={120}
+              fontSize={26}
+              fontWeight={700}
+              textAnchor="end"
+              fill={exposureStatusColor(expo.status)}
+            >
+              {expo.description} ({expo.evLabel})
             </text>
           </g>
         </svg>

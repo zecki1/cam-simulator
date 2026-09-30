@@ -53,6 +53,8 @@ function elementAimHeight(el: StudioElement): number {
       return el.heightCm;
     case "acoustic_panel":
       return 100 + el.heightCm / 2;
+    case "chromakey":
+      return el.heightCm / 2; // centro do fundo
     default:
       return 80;
   }

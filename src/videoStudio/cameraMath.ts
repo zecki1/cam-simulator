@@ -1,7 +1,10 @@
-import type { CameraElement, SubjectElement } from "../types/videoStudio";
+import type { CameraElement, StudioElement, SubjectElement } from "../types/videoStudio";
 import { distanceCm } from "./format";
 
 const RAD_TO_DEG = 180 / Math.PI;
+const DEG = Math.PI / 180;
+/** Distância (cm) à frente da câmera usada como ponto de mira no modo manual. */
+const AIM_LEAD_CM = 600;
 
 export interface FramingPoint {
   key: "pes" | "cintura" | "ombros" | "olhos" | "topo";
@@ -49,6 +52,88 @@ export function horizontalFovDeg(camera: CameraElement): number {
   return 2 * Math.atan(camera.sensor.width / 2 / camera.lens.focalLength) * RAD_TO_DEG;
 }
 
+/**
+ * Direção (graus, 0 = +y) em que a câmera realmente aponta: o alvo
+ * configurado ("Mirar em"), ou — sem alvo — a rotação manual do tripé.
+ */
+export function cameraAimDeg(
+  camera: CameraElement,
+  elements: StudioElement[]
+): number {
+  const t = camera.targetId
+    ? elements.find((el) => el.id === camera.targetId)
+    : undefined;
+  return t ? rotationToward(camera.position, t.position) : camera.rotation;
+}
+
+/**
+ * Ponto de mira 3D da câmera (coordenadas de mundo: x, altura, z):
+ * com alvo → posição do alvo na altura do rosto/peito (65% da altura);
+ * sem alvo → ponto à frente na direção da rotação, na altura do tripé
+ * (pan horizontal, como ajustar a cabeça do tripé).
+ *
+ * Conversão de planta para o mundo3D: **norte (+y da planta) = −Z**.
+ * Com a câmera olhando para −Z e up +Y, o leste (+x) fica à direita do
+ * quadro — igual à planta. Mapear +y → +Z espelharia a imagem na
+ * horizontal (three.js coloca −X à direita quando olhamos para +Z).
+ */
+export function cameraAimPoint(
+  camera: CameraElement,
+  elements: StudioElement[]
+): { x: number; y: number; z: number } {
+  const t = camera.targetId
+    ? elements.find((el) => el.id === camera.targetId)
+    : undefined;
+  if (t && "heightCm" in t) {
+    return {
+      x: t.position.x,
+      y: t.heightCm * 0.65,
+      z: -t.position.y,
+    };
+  }
+  return {
+    x: camera.position.x + Math.sin(camera.rotation * DEG) * AIM_LEAD_CM,
+    y: camera.heightCm,
+    z: -(camera.position.y + Math.cos(camera.rotation * DEG) * AIM_LEAD_CM),
+  };
+}
+
+/**
+ * Deslocamento horizontal normalizado de um ponto no quadro da câmera,
+ * relativo à direção de mira: 0 = centro do quadro, ±1 = bordas.
+ * Valores com |x| > 1 ficam fora do quadro.
+ */
+export function horizontalOffsetNorm(
+  camera: CameraElement,
+  point: { x: number; y: number },
+  aimDeg: number
+): number {
+  const bearing = rotationToward(camera.position, point);
+  const err = normalizeDeg(bearing - aimDeg + 180) - 180;
+  // atrás da câmera (|erro| ≥ 90°) nunca aparece no quadro — tan seria
+  // periódico de 180° e projetaria o ponto no centro de forma errada
+  if (Math.abs(err) >= 90) return err < 0 ? -Infinity : Infinity;
+  const hHalfRad = (horizontalFovDeg(camera) * DEG) / 2;
+  return Math.tan(err * DEG) / Math.tan(hHalfRad);
+}
+
+/**
+ * Se um ponto está dentro da zona de visão (cone horizontal) da câmera —
+ * a mesma régua do frustum desenhado na planta baixa — com folga extra de
+ * `marginDeg` além do FOV horizontal para objetos grandes na borda.
+ * Elementos fora do cone são omitidos da cena 3D.
+ */
+export function isInCameraCone(
+  camera: CameraElement,
+  point: { x: number; y: number },
+  aimDeg: number,
+  marginDeg = 10
+): boolean {
+  const bearing = rotationToward(camera.position, point);
+  const err = normalizeDeg(bearing - aimDeg + 180) - 180;
+  return Math.abs(err) <= horizontalFovDeg(camera) / 2 + marginDeg;
+}
+
 export interface Projector {
   distanceCm: number;
   vFovRad: number;
@@ -62,21 +147,24 @@ export interface Projector {
 }
 
 /**
- * Cria o projetor da câmera para o participante: a câmera mira
- * automaticamente na altura do rosto/peito do participante.
+ * Cria o projetor da câmera para o participante: por padrão a câmera mira
+ * automaticamente na altura do rosto/peito do participante; passando
+ * `aimAngleRad` (ex.: 0 = nível) usa o ângulo de mira real da câmera.
  * Usa a projeção perspectiva exata (tan da diferença de ângulos),
  * igual à câmera perspectiva do render 3D.
  */
 export function makeProjector(
   camera: CameraElement,
-  subject: SubjectElement
+  subject: SubjectElement,
+  aimAngleRad?: number
 ): Projector {
   const d = distanceCm(camera.position, subject.position) || 1;
   const camH = camera.heightCm;
   const subjH = subject.heightCm;
   const vFovRad = (verticalFovDeg(camera) * Math.PI) / 180;
   const aimHeightCm = subjH * 0.65;
-  const aimAngle = Math.atan((aimHeightCm - camH) / d);
+  const aimAngle =
+    aimAngleRad ?? Math.atan((aimHeightCm - camH) / d);
 
   const yNormOf = (heightCm: number) => {
     const angle = Math.atan((heightCm - camH) / d);
@@ -132,11 +220,13 @@ export function perspectiveLabel(bearingDeg: number): string {
 
 /**
  * Calcula o enquadramento projetando o participante no quadro da câmera.
- * A câmera mira automaticamente na altura do peito/rosto do participante.
+ * Por padrão mira na altura do peito/rosto do participante; passando
+ * `aimAngleRad` usa o ângulo de mira real (ex.: 0 = câmera nivelada).
  */
 export function computeFraming(
   camera: CameraElement,
-  subject: SubjectElement
+  subject: SubjectElement,
+  aimAngleRad?: number
 ): FramingMetrics {
   const d = distanceCm(camera.position, subject.position) || 1;
   const subjH = subject.heightCm;
@@ -144,7 +234,7 @@ export function computeFraming(
   const vFov = (verticalFovDeg(camera) * Math.PI) / 180;
   const hFov = (horizontalFovDeg(camera) * Math.PI) / 180;
 
-  const projector = makeProjector(camera, subject);
+  const projector = makeProjector(camera, subject, aimAngleRad);
   const toNorm = (heightCm: number) => projector.yNormOf(heightCm);
 
   const definitions: Omit<FramingPoint, "yNorm">[] = [

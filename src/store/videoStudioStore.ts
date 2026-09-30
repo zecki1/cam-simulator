@@ -1,9 +1,13 @@
 import { create } from "zustand";
+import { applyCameraModel, cameraModelById } from "../videoStudio/cameraModels";
+import { CHROMA_KEY_COLOR } from "../types/videoStudio";
 import type {
   AcousticPanelElement,
   BoomMicElement,
   CameraElement,
+  ChromaKeyElement,
   ComputerElement,
+  GhostState,
   LightElement,
   Room,
   StudioElement,
@@ -17,7 +21,19 @@ let seq = 0;
 const uid = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
-const DEFAULT_ROOM: Room = { widthCm: 700, lengthCm: 500, heightCm: 280 };
+const DEFAULT_ROOM: Room = {
+  widthCm: 700,
+  lengthCm: 500,
+  heightCm: 280,
+  floorColor: "#9EA9B5",
+  wallNorthColor: "#C9D2DA",
+  wallSouthColor: "#B9C4CE",
+  wallEastColor: "#C9D2DA",
+  wallWestColor: "#C9D2DA",
+  ceilingColor: "#E2E8F0",
+  floorTexture: "none",
+  floorRoughness: 1,
+};
 
 const FULL_FRAME_SENSOR = {
   name: "35mm (full frame)",
@@ -53,18 +69,19 @@ function createElement(
 
   switch (type) {
     case "camera": {
-      const el: CameraElement = {
+      const model = cameraModelById("canon_sl2")!;
+      const baseCam: CameraElement = {
         ...base(uid("cam"), `Câmera ${n}`, x, y),
         type: "camera",
         heightCm: 150,
         tripod: "tripode",
         lens: {
-          model: "35mm f/1.8",
-          focalLength: 35,
-          maxAperture: 1.8,
-          currentAperture: 1.8,
-          minFocusDistance: 35,
-          type: "prime",
+          model: model.lenses[0].label,
+          focalLength: 24,
+          maxAperture: model.lenses[0].maxAperture,
+          currentAperture: model.lenses[0].maxAperture,
+          minFocusDistance: 30,
+          type: model.lenses[0].type,
         },
         sensor: FULL_FRAME_SENSOR,
         settings: {
@@ -77,8 +94,9 @@ function createElement(
           codec: "H.264",
         },
         targetId: null,
+        glbModelId: "canon_60d",
       };
-      return el;
+      return { ...baseCam, ...applyCameraModel(baseCam, model) };
     }
     case "light": {
       const el: LightElement = {
@@ -93,6 +111,8 @@ function createElement(
         modifier: "barn_doors",
         targetId: null,
         castShadow: true,
+        physicalFalloff: true,
+        glbModelId: "spot_luz",
       };
       return el;
     }
@@ -143,41 +163,59 @@ function createElement(
       };
       return el;
     }
+    case "chromakey": {
+      const el: ChromaKeyElement = {
+        ...base(uid("chroma"), `Chroma key ${n}`, x, y),
+        type: "chromakey",
+        widthCm: 300,
+        heightCm: 250,
+        color: CHROMA_KEY_COLOR,
+        receiveShadows: true,
+        glbModelId: "fundo_verde",
+      };
+      return el;
+    }
   }
 }
 
 function learningStudioPreset(): StudioElement[] {
+  const sl2 = cameraModelById("canon_sl2")!;
+  const t7i = cameraModelById("canon_t7i")!;
+
   const camA: CameraElement = {
-    ...base("cam-a", "Câmera A — frontal", 350, 80),
+    ...base("cam-a", "Câmera A — frontal", 280, 90),
     type: "camera",
     heightCm: 150,
     tripod: "tripode",
+    modelId: sl2.id,
     lens: {
-      model: "35mm f/1.8",
-      focalLength: 35,
-      maxAperture: 1.8,
-      currentAperture: 1.8,
-      minFocusDistance: 35,
-      type: "prime",
+      model: sl2.lenses[0].label,
+      focalLength: 24,
+      maxAperture: 4,
+      currentAperture: 4,
+      minFocusDistance: 30,
+      type: "zoom",
     },
-    sensor: FULL_FRAME_SENSOR,
+    sensor: sl2.sensor,
     settings: {
       iso: 400,
       shutterSpeed: 50,
       whiteBalance: 5600,
       ndFilter: 0,
       frameRate: 30,
-      resolution: "1920x1080",
-      codec: "H.264",
+      resolution: sl2.resolution,
+      codec: sl2.codec,
     },
     targetId: "subject-1",
+    glbModelId: "canon_60d",
   };
 
   const camB: CameraElement = {
-    ...base("cam-b", "Câmera B — diagonal", 50, 100),
+    ...base("cam-b", "Câmera B — diagonal", 430, 80),
     type: "camera",
     heightCm: 140,
     tripod: "tripode",
+    modelId: t7i.id,
     lens: {
       model: "50mm f/1.8",
       focalLength: 50,
@@ -186,22 +224,24 @@ function learningStudioPreset(): StudioElement[] {
       minFocusDistance: 45,
       type: "prime",
     },
-    sensor: FULL_FRAME_SENSOR,
+    sensor: t7i.sensor,
     settings: {
       iso: 400,
       shutterSpeed: 50,
       whiteBalance: 5600,
       ndFilter: 0,
       frameRate: 30,
-      resolution: "1920x1080",
-      codec: "H.264",
+      resolution: t7i.resolution,
+      codec: t7i.codec,
     },
     targetId: "subject-1",
+    glbModelId: "canon_60d",
   };
 
-  // 2 iluminações na FRENTE do apresentador (ele olha para -y)...
+  // 2 iluminações na FRENTE das câmeras (entre elas e o apresentador,
+  // fora do eixo de enquadramento)...
   const key: LightElement = {
-    ...base("light-key", "Key — Spot", 221, 200),
+    ...base("light-key", "Key — Spot", 170, 250),
     type: "light",
     kind: "spot",
     heightCm: 200,
@@ -212,10 +252,11 @@ function learningStudioPreset(): StudioElement[] {
     modifier: "grade",
     targetId: "subject-1",
     castShadow: true,
+    glbModelId: "spot_luz",
   };
 
   const fill: LightElement = {
-    ...base("light-fill", "Fill — Luminária", 520, 170),
+    ...base("light-fill", "Fill — Luminária", 560, 250),
     type: "light",
     kind: "luminaria",
     heightCm: 190,
@@ -226,11 +267,12 @@ function learningStudioPreset(): StudioElement[] {
     modifier: "difusor",
     targetId: "subject-1",
     castShadow: false,
+    glbModelId: "spot_luz",
   };
 
-  // ...e 2 ATRÁS (contra-luz / recorte)
+  // ...e 2 ATRÁS do participante, fora do quadro das duas câmeras
   const back: LightElement = {
-    ...base("light-back", "Back — Luminária focal", 230, 465),
+    ...base("light-back", "Back — Luminária focal", 650, 470),
     type: "light",
     kind: "luminaria_focal",
     heightCm: 220,
@@ -241,10 +283,11 @@ function learningStudioPreset(): StudioElement[] {
     modifier: "barn_doors",
     targetId: "subject-1",
     castShadow: true,
+    glbModelId: "spot_luz",
   };
 
   const ambient: LightElement = {
-    ...base("light-ambient", "Back 2 — Prática", 470, 465),
+    ...base("light-ambient", "Back 2 — Prática", 120, 470),
     type: "light",
     kind: "pratica",
     heightCm: 240,
@@ -255,6 +298,7 @@ function learningStudioPreset(): StudioElement[] {
     modifier: "nenhum",
     targetId: "subject-1",
     castShadow: false,
+    glbModelId: "spot_luz",
   };
 
   const presenter: SubjectElement = {
@@ -263,10 +307,11 @@ function learningStudioPreset(): StudioElement[] {
     heightCm: 175,
     role: "apresentador",
     rotation: 180,
+    glbModelId: "homem",
   };
 
   const table1: TableElement = {
-    ...base("table-1", "Mesa — Estação 1", 150, 145),
+    ...base("table-1", "Mesa — Estação 1", 120, 110),
     type: "table",
     widthCm: 160,
     depthCm: 80,
@@ -274,7 +319,7 @@ function learningStudioPreset(): StudioElement[] {
   };
 
   const pc1: ComputerElement = {
-    ...base("pc-1", "Computador 1", 120, 145),
+    ...base("pc-1", "Computador 1", 105, 110),
     type: "computer",
     monitorSizeIn: 24,
   };
@@ -294,7 +339,13 @@ function learningStudioPreset(): StudioElement[] {
   ];
 }
 
-export type ToggleFlag = "showGrid" | "showDistances" | "showBeams" | "snapToGrid";
+export type ToggleFlag =
+  "showGrid"
+  | "showDistances"
+  | "showBeams"
+  | "snapToGrid"
+  | "shadowsEnabled"
+  | "shadowsDefaultOn";
 
 // ─── Presets customizados (localStorage) ─────────────────────────────
 
@@ -373,6 +424,13 @@ interface VideoStudioState {
   snapToGrid: boolean;
   gridSizeCm: number;
   customPresets: CustomPreset[];
+  /** Modo livre "fantasma" (WASD + mouse) para navegar pelo estúdio */
+  ghost: GhostState;
+  /** Configurações globais de sombra */
+  shadowsEnabled: boolean;       // liga/desliga sombras globalmente
+  shadowsDefaultOn: boolean;     // padrão: sombras ligadas para novas luzes
+  shadowMapSize: number;         // resolução do shadow map (1024, 2048, etc.)
+  shadowBudget: number;          // máx. de luzes com sombra simultâneas
   addElement: (type: StudioElementType) => void;
   updateElement: (id: string, patch: Record<string, unknown>) => void;
   removeElement: (id: string) => void;
@@ -382,11 +440,26 @@ interface VideoStudioState {
   setActiveCamera: (id: string) => void;
   setView: (view: StudioView) => void;
   toggle: (flag: ToggleFlag) => void;
+  /** Redimensiona a sala (planta). Valores em cm, com limites seguros. */
+  setRoom: (patch: Partial<Room>) => void;
   loadLearningPreset: () => void;
   clearAll: () => void;
   saveCustomPreset: (name: string) => void;
   deleteCustomPreset: (id: string) => void;
   loadCustomPreset: (id: string) => void;
+  /** Shadow actions */
+  setShadowsEnabled: (enabled: boolean) => void;
+  setShadowsDefaultOn: (enabled: boolean) => void;
+  setShadowMapSize: (size: number) => void;
+  setShadowBudget: (budget: number) => void;
+  /** Ghost actions */
+  setGhostEnabled: (enabled: boolean) => void;
+  setGhostPosition: (pos: [number, number, number]) => void;
+  setGhostRotation: (yaw: number, pitch: number) => void;
+  setGhostSpeed: (speed: number) => void;
+  setGhostPointerLock: (locked: boolean) => void;
+  /** Move ghost com colisão nas paredes */
+  moveGhost: (dx: number, dy: number, dz: number) => void;
 }
 
 export const useVideoStudio = create<VideoStudioState>()((set) => ({
@@ -401,6 +474,19 @@ export const useVideoStudio = create<VideoStudioState>()((set) => ({
   snapToGrid: true,
   gridSizeCm: 25,
   customPresets: readPresets(),
+  ghost: {
+    enabled: false,
+    position: [350, 170, -250],
+    yaw: 0,
+    pitch: 0,
+    speed: 80,
+    pointerLocked: false,
+  },
+  // Sombras: ligadas por padrão, budget 8, PCFSoftShadowMap (2048 quando ≤3)
+  shadowsEnabled: true,
+  shadowsDefaultOn: true,
+  shadowMapSize: 2048,
+  shadowBudget: 8,
 
   addElement: (type) =>
     set((state) => {
@@ -456,16 +542,43 @@ export const useVideoStudio = create<VideoStudioState>()((set) => ({
       };
     }),
 
-  select: (id) => set({ selectedId: id }),
+  /**
+   * Selecionar uma câmera também assume ela como POV da simulação —
+   * assim o painel lateral e a visão da câmera sempre falam da mesma.
+   */
+  select: (id) =>
+    set((state) => {
+      const el = id ? state.elements.find((x) => x.id === id) : null;
+      return {
+        selectedId: id,
+        ...(el && el.type === "camera" ? { activeCameraId: el.id } : {}),
+      };
+    }),
 
-  setActiveCamera: (id) => set({ activeCameraId: id }),
+  /** Trocar o POV também seleciona a câmera no painel de controle. */
+  setActiveCamera: (id) => set({ activeCameraId: id, selectedId: id }),
 
   setView: (view) => set({ view }),
 
   toggle: (flag) => set((state) => ({ [flag]: !state[flag] }) as never),
 
+  setRoom: (patch) =>
+    set((state) => {
+      const clamp = (v: number, min: number, max: number) =>
+        Math.min(Math.max(Math.round(v), min), max);
+      const room = { ...state.room };
+      if (patch.widthCm !== undefined)
+        room.widthCm = clamp(patch.widthCm, 100, 5000);
+      if (patch.lengthCm !== undefined)
+        room.lengthCm = clamp(patch.lengthCm, 100, 5000);
+      if (patch.heightCm !== undefined)
+        room.heightCm = clamp(patch.heightCm, 100, 800);
+      return { room };
+    }),
+
   loadLearningPreset: () =>
     set({
+      room: DEFAULT_ROOM,
       elements: learningStudioPreset(),
       selectedId: "subject-1",
       activeCameraId: "cam-a",
@@ -515,6 +628,58 @@ export const useVideoStudio = create<VideoStudioState>()((set) => ({
         activeCameraId: firstCam?.id ?? null,
       };
     }),
+
+  // Ghost actions
+  setGhostEnabled: (enabled) =>
+    set((state) => ({
+      ghost: { ...state.ghost, enabled },
+      view: enabled ? "perspectiva" : "topo",
+    })),
+  setGhostPosition: (position) =>
+    set((state) => ({ ghost: { ...state.ghost, position } })),
+  setGhostRotation: (yaw, pitch) =>
+    set((state) => ({
+      ghost: { ...state.ghost, yaw, pitch },
+    })),
+  setGhostSpeed: (speed) =>
+    set((state) => ({ ghost: { ...state.ghost, speed } })),
+  setGhostPointerLock: (pointerLocked) =>
+    set((state) => ({ ghost: { ...state.ghost, pointerLocked } })),
+  moveGhost: (dx, dy, dz) =>
+    set((state) => {
+      const { room, ghost } = state;
+      if (!ghost.enabled) return state;
+
+      const currentX = ghost.position[0];
+      const currentY = -ghost.position[2];
+      const currentHeight = ghost.position[1];
+
+      const cos = Math.cos(ghost.yaw);
+      const sin = Math.sin(ghost.yaw);
+      const worldDx = dx * cos - dz * sin;
+      const worldDz = dx * sin + dz * cos;
+
+      let newX = currentX + worldDx;
+      let newY = currentY - worldDz;
+      const newHeight = Math.max(50, Math.min(room.heightCm - 50, currentHeight + dy));
+
+      const margin = 30;
+      newX = Math.max(margin, Math.min(room.widthCm - margin, newX));
+      newY = Math.max(margin, Math.min(room.lengthCm - margin, newY));
+
+      return {
+        ghost: {
+          ...ghost,
+          position: [newX, newHeight, -newY],
+        },
+      };
+    }),
+
+  // Shadow actions
+  setShadowsEnabled: (enabled) => set({ shadowsEnabled: enabled }),
+  setShadowsDefaultOn: (enabled) => set({ shadowsDefaultOn: enabled }),
+  setShadowMapSize: (size) => set({ shadowMapSize: size }),
+  setShadowBudget: (budget) => set({ shadowBudget: budget }),
 }));
 
 export const selectSubjects = (elements: StudioElement[]) =>

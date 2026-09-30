@@ -198,12 +198,12 @@ cam-simulator/
 - **HUD** — posição (m), velocidade, botão "Voltar à planta" / "Possuir câmera PTZ"
 - **Colisão simples** com paredes da sala (clamp no `Room`); sem colisão com objetos na v1
 
-### 🧭 Tooltips Contextuais e Edição Inline (Planta Baixa + Visão 3D)
-- **Hover em qualquer elemento** → tooltip com nome, tipo, atalhos (ex.: `R` rotaciona, `Delete` remove, `E` edita)
-- **Clique direito** → menu radial: Editar propriedades / Duplicar / Travar / Remover / "Focar câmera aqui"
-- **Arrastar com `Alt`** → clona o elemento (cópia rápida)
-- **Snap visual** → linha tracejada quando alinhado a grade/outro elemento
-- **Painel lateral "Inspect"** ao selecionar — edição rápida sem abrir modal
+### 🧭 Tooltips Contextuais e Edição Inline (Planta Baixa) ✅ **IMPLEMENTADA**
+- **Hover em qualquer elemento** → tooltip com nome, tipo, posição (m), rotação e detalhe por tipo (FOV/alvo da câmera, intensidade/K da luz, altura do participante, medidas da mesa/chroma)
+- **Clique direito** → menu de contexto: Duplicar / Câmera ativa mirar aqui / Bloquear-Desbloquear / Remover (com dependentes)
+- **Arrastar com `Alt`** → clona o elemento antes de mover (cópia rápida)
+- **Painel lateral** ao selecionar — edição completa sem abrir modal (o "Inspect" é o próprio ConfigPanel)
+- *Pendente v2:* atalhos de teclado no tooltip (`R`/`Delete`/`E`), snap visual tracejado e menu radial
 
 ### ❓ Quiz Interativo e Gamificação (no README e no App)
 - **README interativo**: blocos de pergunta/resposta embutidos (ex.: "Qual abertura dá menor profundidade de campo? a) f/1.8  b) f/8  c) f/16") — validação imediata
@@ -303,18 +303,19 @@ tips (id, user_id, title, body, category, status, created_at)
 | 14 | **Personagem Avançado** | Pose, biotipo, acessórios, override cor roupa, expressões | 3 dias | ✅ **concluída** |
 | 15 | **Sombras Físicas + Queda** | decay=2 opcional, PCFSoftShadowMap, bias por tipo, budget 8 | 1 dia | ✅ **concluída** |
 | 16 | **Customização Sala** | Cor piso/paredes/teto, textura, refletividade | 1 dia | ✅ **concluída** |
-| 17 | **Tooltips + Edição Inline** | Hover tooltip, menu radial, painel Inspect, Alt+arrasta clonar | 1–2 dias |
+| 17 | **Tooltips + Edição Inline** | Hover tooltip, menu de contexto (duplicar/bloquear/focar/remover), Alt+arrasta clonar | 1–2 dias | ✅ **concluída** |
 | 18 | **Sistema de Dicas (Resend)** | Modal sugestão → Edge Function → Resend → Admin panel | 1 dia |
-| 19 | **Catálogo Novos GLBs** | Registrar 12+ modelos novos, identificar óculos/acessórios, configurar materiais | 1 dia |
+| 19 | **Catálogo Novos GLBs** | Registrar 12+ modelos novos, identificar óculos/acessórios, configurar materiais | 1 dia | ✅ **concluída** |
 | 20 | **README Interativo** | Blocos de quiz embutidos (MDX ou componente React no README renderizado) | 0,5 dia |
 
 ---
 
 ## Roadmap imediato (atualizado)
 
-1. **Etapa 9–11** do roadmap expandido: Auth+Ranking, Quiz, Modo Fantasma
-2. Gate de qualidade por etapa: `npm run lint && npm run build && npm test`
-3. Deploy contínuo na Vercel (preview por PR + produção em `main`)
+1. **Item 18** — Sistema de dicas via Resend (modal → Edge Function → admin)
+2. **Etapa 9–10** do roadmap: Auth+Ranking (Supabase) e Quiz Engine
+3. Gate de qualidade por etapa: `npm run lint && npm test && npm run build`
+4. Deploy contínuo na Vercel (base `/cam-simulator/`; preview por PR + produção em `main`)
 
 ---
 

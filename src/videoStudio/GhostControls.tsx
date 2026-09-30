@@ -1,44 +1,47 @@
 import { useEffect, useRef } from "react";
-import { useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useVideoStudio } from "../store/videoStudioStore";
 
 /**
  * Controles WASD + mouse para o modo "fantasma" (free-fly).
- * Atualiza o estado ghost no store e a câmera do three.js em tempo real.
+ * Deve ser renderizado DENTRO do <Canvas>. Atualiza a câmera do three.js a
+ * cada frame a partir do estado ghost no store (posição + rotação).
  */
 export function GhostControls() {
+  const ghost = useVideoStudio((s) => s.ghost);
+  const view = useVideoStudio((s) => s.view);
   const {
-    ghost,
     moveGhost,
     setGhostRotation,
     setGhostPointerLock,
     setGhostSpeed,
   } = useVideoStudio();
 
+  const enabled = ghost.enabled || view === "perspectiva";
+
   const { camera, gl } = useThree();
   const keysRef = useRef<Set<string>>(new Set());
   const rafRef = useRef<number>();
 
-  // Sincronizar câmera three.js com estado ghost
-  useEffect(() => {
-    if (!ghost.enabled) return;
-    
+  // Sincronizar câmera three.js com estado ghost a cada frame
+  useFrame(() => {
+    if (!enabled) return;
     camera.position.set(
       ghost.position[0],
       ghost.position[1],
       ghost.position[2]
     );
     camera.rotation.set(ghost.pitch, ghost.yaw, 0, "YXZ");
-  }, [ghost.position, ghost.yaw, ghost.pitch, ghost.enabled, camera]);
+  });
 
   // Loop de movimento contínuo (WASD)
   useEffect(() => {
-    if (!ghost.enabled) return;
+    if (!enabled) return;
 
     const move = () => {
       const { speed } = ghost;
       const keys = keysRef.current;
-      
+
       let dx = 0, dy = 0, dz = 0;
       if (keys.has("KeyW")) dz -= 1;
       if (keys.has("KeyS")) dz += 1;
@@ -57,16 +60,16 @@ export function GhostControls() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [ghost.enabled, ghost.speed, ghost, moveGhost]);
+  }, [enabled, ghost.speed, ghost, moveGhost]);
 
   // Eventos de teclado
   useEffect(() => {
-    if (!ghost.enabled) return;
+    if (!enabled) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!ghost.enabled) return;
+      if (!enabled) return;
       keysRef.current.add(e.code);
-      
+
       // Speed modifiers
       if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
         setGhostSpeed(ghost.speed * 2.5);
@@ -84,11 +87,11 @@ export function GhostControls() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [ghost.enabled, ghost.speed, setGhostSpeed]);
+  }, [enabled, ghost.speed, setGhostSpeed]);
 
   // Eventos de mouse (pointer lock)
   useEffect(() => {
-    if (!ghost.enabled) return;
+    if (!enabled) return;
 
     const canvas = gl.domElement;
     const onMouseMove = (e: MouseEvent) => {
@@ -131,7 +134,7 @@ export function GhostControls() {
         document.exitPointerLock();
       }
     };
-  }, [ghost.enabled, ghost.pointerLocked, ghost.yaw, ghost.pitch, gl.domElement, setGhostRotation, setGhostPointerLock, setGhostSpeed]);
+  }, [enabled, ghost.pointerLocked, ghost.yaw, ghost.pitch, gl.domElement, setGhostRotation, setGhostPointerLock, setGhostSpeed]);
 
   // ESC para sair do pointer lock
   useEffect(() => {

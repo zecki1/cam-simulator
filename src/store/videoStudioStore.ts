@@ -445,6 +445,8 @@ interface VideoStudioState {
   shadowBudget: number;          // máx. de luzes com sombra simultâneas
   addElement: (type: StudioElementType) => void;
   updateElement: (id: string, patch: Record<string, unknown>) => void;
+  /** Duplica um elemento (cópia deslocada 25 cm, seleciona a cópia). */
+  duplicateElement: (id: string) => void;
   removeElement: (id: string) => void;
   /** Remove o elemento junto com seus dependentes (ex.: mesa + computadores). */
   removeElementCascade: (id: string) => void;
@@ -518,6 +520,22 @@ export const useVideoStudio = create<VideoStudioState>()((set) => ({
       ),
     })),
 
+  duplicateElement: (id) =>
+    set((state) => {
+      const el = state.elements.find((e) => e.id === id);
+      if (!el) return state;
+      const copy = {
+        ...el,
+        id: uid(el.type),
+        name: `${el.name} (cópia)`,
+        position: { x: el.position.x + 25, y: el.position.y + 25 },
+      } as StudioElement;
+      return {
+        elements: [...state.elements, copy],
+        selectedId: copy.id,
+      };
+    }),
+
   removeElement: (id) =>
     set((state) => ({
       elements: state.elements.filter((el) => el.id !== id),
@@ -570,7 +588,12 @@ export const useVideoStudio = create<VideoStudioState>()((set) => ({
   /** Trocar o POV também seleciona a câmera no painel de controle. */
   setActiveCamera: (id) => set({ activeCameraId: id, selectedId: id }),
 
-  setView: (view) => set({ view }),
+  setView: (view) =>
+    set((state) => ({
+      view,
+      // o modo livre WASD só fica ativo na vista "perspectiva"
+      ghost: { ...state.ghost, enabled: view === "perspectiva" },
+    })),
 
   toggle: (flag) => set((state) => ({ [flag]: !state[flag] }) as never),
 

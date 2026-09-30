@@ -23,8 +23,15 @@ const TOGGLES: { flag: ToggleFlag; label: string }[] = [
 ];
 
 export default function VideoStudioPage() {
-  const { view, setView, toggle, showGrid, showDistances, showBeams, snapToGrid, shadowsEnabled, shadowsDefaultOn } =
-    useVideoStudio();
+  const view = useVideoStudio((s) => s.view);
+  const setView = useVideoStudio((s) => s.setView);
+  const toggle = useVideoStudio((s) => s.toggle);
+  const showGrid = useVideoStudio((s) => s.showGrid);
+  const showDistances = useVideoStudio((s) => s.showDistances);
+  const showBeams = useVideoStudio((s) => s.showBeams);
+  const snapToGrid = useVideoStudio((s) => s.snapToGrid);
+  const shadowsEnabled = useVideoStudio((s) => s.shadowsEnabled);
+  const shadowsDefaultOn = useVideoStudio((s) => s.shadowsDefaultOn);
 
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const muted = useColorModeValue("gray.500", "gray.400");

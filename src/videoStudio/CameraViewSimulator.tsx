@@ -31,7 +31,6 @@ import {
 } from "./exposure";
 import { formatCm, formatMeters, formatMmAsMeters, formatNumber } from "./format";
 import StudioScene3D from "./StudioScene3D";
-import { GhostControls } from "./GhostControls";
 
 const FRAME_W = 1600;
 const FRAME_H = 900;
@@ -61,18 +60,16 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export default function CameraViewSimulator() {
-  const {
-    elements,
-    activeCameraId,
-    setActiveCamera,
-    room,
-    selectedId,
-    select,
-    updateElement,
-    view,
-  } = useVideoStudio();
+  const elements = useVideoStudio((s) => s.elements);
+  const activeCameraId = useVideoStudio((s) => s.activeCameraId);
+  const setActiveCamera = useVideoStudio((s) => s.setActiveCamera);
+  const room = useVideoStudio((s) => s.room);
+  const selectedId = useVideoStudio((s) => s.selectedId);
+  const select = useVideoStudio((s) => s.select);
+  const updateElement = useVideoStudio((s) => s.updateElement);
+  const view = useVideoStudio((s) => s.view);
 
-  // Ghost controls (ativa apenas no modo perspectiva) - renderizado dentro do Canvas
+  // Modo livre "fantasma" (WASD): renderizado dentro do Canvas (StudioScene3D)
   const showGhost = view === "perspectiva";
 
   const panRef = useRef<{
@@ -315,10 +312,10 @@ export default function CameraViewSimulator() {
         role="img"
         aria-label={`Visão da ${camera.name} — ${frameLabel}, vista ${perspectiveLabel(bearing)}`}
         title="Arraste para os lados para girar a câmera (pan)"
-        onPointerDown={onPanDown}
-        onPointerMove={onPanMove}
-        onPointerUp={onPanUp}
-        onPointerCancel={onPanUp}
+        onPointerDown={showGhost ? undefined : onPanDown}
+        onPointerMove={showGhost ? undefined : onPanMove}
+        onPointerUp={showGhost ? undefined : onPanUp}
+        onPointerCancel={showGhost ? undefined : onPanUp}
         style={panning ? { cursor: "grabbing" } : undefined}
       >
         {/* ── camada de fundo: parede, chão, linha do olho e guias ── */}
@@ -372,8 +369,8 @@ export default function CameraViewSimulator() {
           room={room}
           exposure={exposureGain(camera)}
           wbGain={wbGain}
+          showGhost={showGhost}
         />
-        {showGhost && <GhostControls />}
 
         {/* ── camada de overlay: medições e rótulos (sem contorno) ── */}
         <svg

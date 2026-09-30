@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { useColorModeValue } from "@chakra-ui/react";
+import { useEffect, useRef, useState } from "react";
+import { Box, Button, Text, useColorModeValue } from "@chakra-ui/react";
 import { useVideoStudio } from "../store/videoStudioStore";
 import type {
   AcousticPanelElement,
@@ -7,12 +7,25 @@ import type {
   ChromaKeyElement,
   LightElement,
   StudioElement,
+  StudioElementType,
   TableElement,
 } from "../types/videoStudio";
 import { distanceCm, formatMeters } from "./format";
 import { horizontalFovDeg } from "./cameraMath";
 
 const DEG = Math.PI / 180;
+
+/** Rótulos dos tipos de elemento (tooltip/menu de contexto). */
+const TYPE_LABELS: Record<StudioElementType, string> = {
+  camera: "📷 Câmera",
+  light: "🔆 Luz",
+  subject: "🧑 Participante",
+  table: "🪑 Mesa",
+  computer: "💻 Computador",
+  acoustic_panel: "🔇 Painel acústico",
+  chromakey: "🟩 Chroma key",
+  boom_mic: "🎙 Boom",
+};
 
 /** Retorna o bounding box 2D (em cm, planta) de um elemento. */
 function getElementBounds(el: StudioElement): { minX: number; maxX: number; minY: number; maxY: number } {
@@ -403,13 +416,45 @@ export default function StudioTopView() {
     gridSizeCm,
     select,
     updateElement,
+    duplicateElement,
+    removeElementCascade,
+    setActiveCamera,
   } = useVideoStudio();
+
+  // Tooltip (hover) e menu de contexto (clique direito)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{
+    el: StudioElement;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    el: StudioElement;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    document.addEventListener("click", close);
+    document.addEventListener("contextmenu", close);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("contextmenu", close);
+    };
+  }, []);
 
   const floorColor = useColorModeValue("#F7FAFC", "#1A202C");
   const wallColor = useColorModeValue("#4A5568", "#A0AEC0");
   const textColor = useColorModeValue("#2D3748", "#E2E8F0");
   const gridMinor = useColorModeValue("#E2E8F0", "#2D3748");
   const gridMajor = useColorModeValue("#CBD5E0", "#4A5568");
+  const overlayBg = useColorModeValue(
+    "rgba(255,255,255,0.97)",
+    "rgba(26,32,44,0.97)"
+  );
+  const overlayBorder = useColorModeValue("gray.200", "gray.600");
+  const overlayMuted = useColorModeValue("gray.600", "gray.400");
 
   const margin = 55;
   const vbW = room.widthCm + margin * 2;
@@ -426,24 +471,99 @@ export default function StudioTopView() {
     return { x: p.x, y: room.lengthCm - p.y };
   }
 
+  /** Coordenadas do evento relativas ao contêiner (px de tela). */
+  function toLocal(e: { clientX: number; clientY: number }) {
+    const r = containerRef.current?.getBoundingClientRect();
+    if (!r) return { x: 0, y: 0 };
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function onElementPointerEnter(e: React.PointerEvent, el: StudioElement) {
+    e.stopPropagation();
+    setHover({ el, ...toLocal(e) });
+  }
+
+  function onElementPointerLeave() {
+    setHover(null);
+  }
+
+  function onElementContextMenu(e: React.MouseEvent, el: StudioElement) {
+    e.preventDefault();
+    e.stopPropagation();
+    setHover(null);
+    setContextMenu({ el, ...toLocal(e) });
+    select(el.id);
+  }
+
+  function onSvgContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setContextMenu(null);
+  }
+
+  /** Faz a câmera ativa mirar no elemento (item do menu de contexto). */
+  function focusCameraOnElement(id: string) {
+    setContextMenu(null);
+    const cam = elements.find((e) => e.type === "camera");
+    if (!cam || cam.id === id) return;
+    updateElement(cam.id, { targetId: id });
+    setActiveCamera(cam.id);
+  }
+
+  /** Detalhe extra por tipo de elemento (linha do tooltip). */
+  function tooltipDetail(el: StudioElement): string | null {
+    switch (el.type) {
+      case "camera": {
+        const target = elements.find((t) => t.id === el.targetId);
+        const fov = horizontalFovDeg(el);
+        return `FOV ${fov.toFixed(0)}°${target ? ` · mira em ${target.name}` : ""}`;
+      }
+      case "light":
+        return `${el.intensity}% · ${el.colorTemp} K`;
+      case "subject":
+        return `altura ${formatMeters(el.heightCm, 2)} · ${el.role}`;
+      case "table":
+        return `${formatMeters(el.widthCm, 2)} × ${formatMeters(el.depthCm, 2)}`;
+      case "chromakey":
+        return `${formatMeters(el.widthCm, 2)} × ${formatMeters(el.heightCm, 2)}`;
+      default:
+        return null;
+    }
+  }
+
   function onElementPointerDown(
     e: React.PointerEvent,
     el: StudioElement
   ) {
     e.stopPropagation();
-    select(el.id);
+    // arraste só com o botão esquerdo: o botão direito abre o menu de
+    // contexto (pointer capture deslocaria o event target para o <svg>)
+    if (e.button !== 0) return;
+    // Alt + arrastar → clona antes de mover (cópia rápida)
+    let targetId = el.id;
+    if (e.altKey && !el.locked && el.visible) {
+      useVideoStudio.getState().duplicateElement(el.id);
+      const els = useVideoStudio.getState().elements;
+      targetId = els[els.length - 1]?.id ?? el.id;
+    }
+    select(targetId);
     if (el.locked || !el.visible) return;
     const p = clientToSvg(e);
+    const src =
+      targetId === el.id
+        ? el.position
+        : useVideoStudio.getState().elements.find((x) => x.id === targetId)
+            ?.position ?? el.position;
     dragRef.current = {
-      id: el.id,
-      dx: p.x - el.position.x,
-      dy: p.y - el.position.y,
+      id: targetId,
+      dx: p.x - src.x,
+      dy: p.y - src.y,
     };
     svgRef.current?.setPointerCapture(e.pointerId);
   }
 
   function onRotatePointerDown(e: React.PointerEvent, el: StudioElement) {
     e.stopPropagation();
+    if (e.button !== 0) return;
     select(el.id);
     if (el.locked || !el.visible) return;
     rotateRef.current = el.id;
@@ -533,6 +653,7 @@ export default function StudioTopView() {
   };
 
   return (
+    <Box ref={containerRef} position="relative" w="100%" h="100%">
     <svg
       ref={svgRef}
       id="studio-topo-svg"
@@ -540,7 +661,11 @@ export default function StudioTopView() {
       style={{ width: "100%", height: "100%", touchAction: "none" }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerDown={() => select(null)}
+      onPointerDown={() => {
+        select(null);
+        setContextMenu(null);
+      }}
+      onContextMenu={onSvgContextMenu}
       role="img"
       aria-label="Planta baixa do estúdio"
     >
@@ -689,6 +814,9 @@ export default function StudioTopView() {
             <g
               key={el.id}
               onPointerDown={(e) => onElementPointerDown(e, el)}
+              onPointerEnter={(e) => onElementPointerEnter(e, el)}
+              onPointerLeave={onElementPointerLeave}
+              onContextMenu={(e) => onElementContextMenu(e, el)}
               style={{ cursor: el.locked ? "not-allowed" : "grab" }}
             >
               <ElementShape
@@ -709,6 +837,9 @@ export default function StudioTopView() {
             <g
               key={`label-${el.id}`}
               onPointerDown={(e) => onElementPointerDown(e, el)}
+              onPointerEnter={(e) => onElementPointerEnter(e, el)}
+              onPointerLeave={onElementPointerLeave}
+              onContextMenu={(e) => onElementContextMenu(e, el)}
               style={{ cursor: el.locked ? "not-allowed" : "grab" }}
             >
               <FlippedLabel
@@ -799,5 +930,112 @@ export default function StudioTopView() {
         </g>
       </g>
     </svg>
+
+      {/* Tooltip de hover */}
+      {hover && !contextMenu && (
+        <Box
+          position="absolute"
+          left={`${hover.x + 14}px`}
+          top={`${hover.y + 14}px`}
+          pointerEvents="none"
+          bg={overlayBg}
+          color={textColor}
+          border="1px solid"
+          borderColor={overlayBorder}
+          borderRadius="md"
+          boxShadow="md"
+          px={2.5}
+          py={1.5}
+          fontSize="xs"
+          maxW="260px"
+          zIndex={10}
+        >
+          <Text fontWeight="bold">{hover.el.name}</Text>
+          <Text color={overlayMuted}>
+            {TYPE_LABELS[hover.el.type]}
+            {hover.el.locked ? " · 🔒" : ""}
+          </Text>
+          <Text>
+            Posição: {formatMeters(hover.el.position.x, 2)},{" "}
+            {formatMeters(hover.el.position.y, 2)} ·{" "}
+            {Math.round(hover.el.rotation)}°
+          </Text>
+          {tooltipDetail(hover.el) && (
+            <Text color={overlayMuted}>{tooltipDetail(hover.el)}</Text>
+          )}
+        </Box>
+      )}
+
+      {/* Menu de contexto (clique direito) */}
+      {contextMenu && (
+        <Box
+          position="absolute"
+          left={`${contextMenu.x}px`}
+          top={`${contextMenu.y}px`}
+          bg={overlayBg}
+          color={textColor}
+          border="1px solid"
+          borderColor={overlayBorder}
+          borderRadius="md"
+          boxShadow="lg"
+          py={1}
+          minW="200px"
+          zIndex={20}
+        >
+          <Text px={3} py={1} fontSize="xs" color={overlayMuted} fontWeight="bold">
+            {contextMenu.el.name}
+          </Text>
+          <Button
+            size="xs"
+            variant="ghost"
+            w="100%"
+            justifyContent="flex-start"
+            onClick={() => {
+              duplicateElement(contextMenu.el.id);
+              setContextMenu(null);
+            }}
+          >
+            📋 Duplicar
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            w="100%"
+            justifyContent="flex-start"
+            isDisabled={contextMenu.el.type === "camera"}
+            onClick={() => focusCameraOnElement(contextMenu.el.id)}
+          >
+            🎯 Câmera ativa mirar aqui
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            w="100%"
+            justifyContent="flex-start"
+            onClick={() => {
+              updateElement(contextMenu.el.id, {
+                locked: !contextMenu.el.locked,
+              });
+              setContextMenu(null);
+            }}
+          >
+            {contextMenu.el.locked ? "🔓 Desbloquear" : "🔒 Bloquear"}
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            colorScheme="red"
+            w="100%"
+            justifyContent="flex-start"
+            onClick={() => {
+              removeElementCascade(contextMenu.el.id);
+              setContextMenu(null);
+            }}
+          >
+            🗑 Remover
+          </Button>
+        </Box>
+      )}
+    </Box>
   );
 }

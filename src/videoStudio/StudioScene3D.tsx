@@ -6,6 +6,7 @@ import { useVideoStudio } from "../store/videoStudioStore";
 import { GLB_MODELS } from "./glbModels";
 import { GlbModel, ModelErrorBoundary } from "./GlbModelView";
 import { useShadowFlags } from "./gltfFit";
+import { GhostControls } from "./GhostControls";
 import { Environment, Lightformer } from "@react-three/drei";
 import type {
   AcousticPanelElement,
@@ -807,6 +808,7 @@ export default function StudioScene3D({
   room,
   exposure,
   wbGain,
+  showGhost = false,
 }: {
   camera: CameraElement;
   /** Ponto de mira 3D (mundo): alvo configurado ou direção da rotação manual. */
@@ -817,6 +819,8 @@ export default function StudioScene3D({
   exposure: number;
   /** Ganhos RGB do balance de branco da câmera (5600 K = [1,1,1]). */
   wbGain: Gain;
+  /** Modo livre WASD: controla a câmera internamente (substitui o CameraRig). */
+  showGhost?: boolean;
 }) {
   const camPos = {
     x: camera.position.x,
@@ -825,9 +829,8 @@ export default function StudioScene3D({
   };
   const aimObj = { x: aim.x, y: aim.y, z: aim.z };
 
-  const { shadowsEnabled, shadowBudget: storeShadowBudget } = useVideoStudio(
-    (s) => ({ shadowsEnabled: s.shadowsEnabled, shadowBudget: s.shadowBudget })
-  );
+  const shadowsEnabled = useVideoStudio((s) => s.shadowsEnabled);
+  const storeShadowBudget = useVideoStudio((s) => s.shadowBudget);
 
   const lights = elements.filter(
     (el): el is LightElement =>
@@ -941,7 +944,15 @@ export default function StudioScene3D({
       }}
     >
       <RendererExposure value={exposure} />
-      <CameraRig position={camPos} target={aimObj} fovDeg={verticalFovDeg(camera)} />
+      {showGhost ? (
+        <GhostControls />
+      ) : (
+        <CameraRig
+          position={camPos}
+          target={aimObj}
+          fovDeg={verticalFovDeg(camera)}
+        />
+      )}
 
       {/* Environment Map com Lightformers — reflexos realistas nas superfícies */}
       <Environment

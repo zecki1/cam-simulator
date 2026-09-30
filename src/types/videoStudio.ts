@@ -32,6 +32,12 @@ export interface CameraElement extends BaseElement {
   targetId: string | null;
   /** id no catálogo CAMERA_MODELS; ausente = configuração personalizada */
   modelId?: string;
+  /** Modo de foco: autofoco no alvo (padrão) ou foco manual (MF) */
+  focusMode?: "auto" | "manual";
+  /** Distância de foco em cm — usada apenas no modo MF */
+  focusDistanceCm?: number;
+  /** Zoom digital (recorte do sensor): 1 = desligado, 2 = 2× */
+  digitalZoom?: number;
 }
 
 export type LightKind =

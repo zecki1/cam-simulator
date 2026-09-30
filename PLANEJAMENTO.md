@@ -150,23 +150,23 @@ shirtColor: string;   // color picker, default por role
 
 ## 6. Simulador 100% de câmera (zoom, rotação, foco)
 
-**Esforço:** 2 dias · **Prioridade:** alta · **Status:** 🔄 em andamento (modelos, rotação, exposição, sala ✓)
+**Esforço:** 2 dias · **Prioridade:** alta · **Status:** 🔄 em andamento (modelos, rotação, exposição, sala, foco, bokeh, zoom digital ✓)
 
 - [x] **Modelos de câmera:** catálogo `src/videoStudio/cameraModels.ts` com **Canon EOS SL2, Canon EOS T7i, Sony Handcam (FDR-AX43A), PTZ 20×** — corpo define sensor (mm/crop/CoC), ISO, fps, resolução, codec e objetivas; aplicados via `applyCameraModel()` (preserva posição/alvo)
 - [x] **Painel de configuração da câmera** (direita): Modelo + ficha técnica, Objetiva, **Zoom (focal) em slider** por faixa real da lente (ex.: kit 18–55 mm), Abertura limitada ao máximo da lente, ISO/fps do modelo, **Filtro ND**, alvo, POV
 - [x] **Rotação:** slider do painel gira a câmera selecionada + **arrastar na visão da câmera (pan)** — horizontal gira, assume direção manual (solta `targetId`), guarda anti-clique após arraste (`interact.ts`)
 - [x] **Sincronização POV ↔ painel:** selecionar câmera (dropdown/CLI/Objeto) → ela vira POV *e* aparece no painel; trocar POV → seleciona a câmera (`select`/`setActiveCamera` no store)
-- [ ] **Zoom digital** (corta o sensor, simula crop)
-- [ ] **Tilt:** limitar pitch no pan/tilt e botão "Reenquadrar no alvo"
+- [x] **Zoom digital** (corta o sensor, simula crop) — slider 1×–2× no painel, aplicado em `verticalFovDeg`/`horizontalFovDeg` (FOV e enquadramento do 3D/overlay acompanham)
+- [x] **Tilt:** pitch do modo fantasma limitado (±89°) + botão **"🎯 Reenquadrar no alvo"** no painel da câmera (volta `targetId` ao participante e sincroniza a rotação)
 - [x] **Exposição:** ISO/obturador/abertura/ND → `toneMappingExposure` do Canvas (módulo `exposure.ts`, referência ISO 400 · 1/50 · f/4); alerta "imagem subexposta/superexposta" (±1 EV) no painel e no overlay da visão da câmera
 - [x] **Balanço de branco:** Kelvin da câmera (2800–7500 K) → ganhos RGB aplicados a todas as luzes do render (5600 K = neutro); rótulo corrigido para "Balanço de branco"
 - [x] **Sala editável:** seção "Sala (planta)" no painel (largura/profundura/altura em m, com limites); `setRoom` no store; `loadLearningPreset` restaura o padrão 7 × 5 m
 - [x] **Layout do preset:** câmera A ao lado da mesa, B ao lado da principal, key/fill na frente do participante e back/ambient atrás — as 4 luzes ficam fora do enquadramento das 2 câmeras
 - [x] **GLBs organizados:** `personagem-man.glb` e `camera60d-teste.glb` movidos para `src/assets/models/`
-- [ ] **Foco:** slider `focusDistanceCm` manual (modo MF) ou "autofocus no alvo"; alimenta `computeDof` (near/far/hiperfocal) — os 8 Metrics da `CameraViewSimulator` passam a refletir o foco manual
-- [ ] **Bokeh no 3D:** instalar `@react-three/postprocessing` (v2) + `BokehEffect` ligado ao modo MF/foco manual
+- [x] **Foco:** seletor **Autofoco no alvo / Foco manual (MF)** + slider `focusDistanceCm` (30–1500 cm); alimenta `computeDof` (near/far/hiperfocal) — métrica **"Foco"** (distância · AF/MF) e Profundidade de campo refletem o foco manual
+- [x] **Bokeh no 3D:** `@react-three/postprocessing` (v2.19) + `DepthOfField` com `worldFocusDistance` = foco efetivo, `worldFocusRange` = faixa nítida calculada pelo `computeDof` e `bokehScale` derivado da abertura
 - [ ] **Extras (backlog):** zebra/false color, peaking de foco, aspect frame guides (2.39:1, 1:1)
-- [ ] Exportar PNG continua funcionando (`exportImage.ts`)
+- [x] **Exportar PNG** continua funcionando (`exportImage.ts` — verificado com o EffectComposer ativo, `preserveDrawingBuffer`)
 
 **Critérios de aceite:** zoom muda o enquadramento igual lente real; foco manual desfoca fundo no 3D e atualiza os números de DoF; pan/tilt mantém ou limpa o alvo conforme o modo.
 
@@ -222,7 +222,7 @@ shirtColor: string;   // color picker, default por role
 | 3 | Reflexos (Environment map) | 1 dia | ✅ **concluída** | 30/09/2026 |
 | 4 | Sombras universais | 0,5–1 dia | ✅ **concluída** | 30/09/2026 |
 | 5 | Modo fantasma (WASD) | 1 dia | ✅ **concluída** | 30/09/2026 |
-| 6 | Simulador 100% de câmera (zoom, pan/tilt, foco, anatomia) | 2 dias | 🔄 **parcial** | modelos+pan+anatomia ✓ 30/09 |
+| 6 | Simulador 100% de câmera (zoom, pan/tilt, foco, anatomia) | 2 dias | 🔄 **parcial** | modelos+pan+anatomia+foco MF/AF+bokeh+zoom digital ✓ 30/09 |
 | 7 | Bancada de Áudio e Vídeo | 2–3 dias | ⬜ pendente | |
 | 8 | Testes e validação | 1 dia | ⬜ pendente | |
 | | **Total** | **~11–14 dias** | **6/8** | |

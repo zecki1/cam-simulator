@@ -13,6 +13,7 @@ import {
   cameraAimPoint,
   computeDof,
   computeFraming,
+  focusDistanceCmOf,
   horizontalFovDeg,
   horizontalOffsetNorm,
   makeProjector,
@@ -160,11 +161,14 @@ export default function CameraViewSimulator() {
       framing.distanceCm,
       Math.abs(subject.heightCm * 0.65 - camera.heightCm)
     ) * 10;
+  // Foco: MF usa a distância manual; AF mantém a distância até o participante
+  const focusCm = focusDistanceCmOf(camera, framing.distanceCm);
+  const focusMm = camera.focusMode === "manual" ? focusCm * 10 : slantMm;
   const dof = computeDof(
     camera.lens.focalLength,
     camera.lens.currentAperture,
     camera.sensor.coc,
-    slantMm
+    focusMm
   );
 
   const rulerTicks: number[] = [];
@@ -543,6 +547,10 @@ export default function CameraViewSimulator() {
         />
         <Metric label="FOV vertical" value={formatNumber(verticalFovDeg(camera), 1, "°")} />
         <Metric label="FOV horizontal" value={formatNumber(horizontalFovDeg(camera), 1, "°")} />
+        <Metric
+          label="Foco"
+          value={`${formatMeters(focusCm, 2)} · ${camera.focusMode === "manual" ? "MF" : "AF"}`}
+        />
         <Metric
           label="Profundidade de campo"
           value={`${formatMmAsMeters(dof.nearMm)} – ${formatMmAsMeters(dof.farMm)}`}

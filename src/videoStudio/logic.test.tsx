@@ -8,6 +8,7 @@ import {
   cameraAimDeg,
   cameraAimPoint,
   computeFraming,
+  focusDistanceCmOf,
   horizontalFovDeg,
   horizontalOffsetNorm,
   isInCameraCone,
@@ -614,4 +615,32 @@ test("chromakey: criado com verde chroma, sombra ligada; edição desliga recebi
     Math.abs(aim.heightCm - el.heightCm / 2) < 0.001,
     "altura do alvo = centro do fundo"
   );
+});
+
+test("zoom digital corta o FOV e o foco manual define a distância de foco", () => {
+  const cam = makeCamera(350, 80);
+  const baseV = verticalFovDeg(cam);
+  const baseH = horizontalFovDeg(cam);
+
+  // 2× = metade do FOV (corta o sensor)
+  const zoomed = { ...cam, digitalZoom: 2 };
+  assert.ok(
+    Math.abs(verticalFovDeg(zoomed) - baseV / 2) < 1e-9,
+    "zoom digital 2× reduz o FOV vertical pela metade"
+  );
+  assert.ok(
+    Math.abs(horizontalFovDeg(zoomed) - baseH / 2) < 1e-9,
+    "zoom digital 2× reduz o FOV horizontal pela metade"
+  );
+  // 1× ou ausente = sem mudança
+  assert.equal(verticalFovDeg({ ...cam, digitalZoom: 1 }), baseV);
+
+  // foco: AF cai no fallback (distância do participante), MF usa o valor manual
+  assert.equal(focusDistanceCmOf(cam, 420), 420, "AF usa a distância do alvo");
+  const mf: CameraElement = {
+    ...cam,
+    focusMode: "manual",
+    focusDistanceCm: 180,
+  };
+  assert.equal(focusDistanceCmOf(mf, 420), 180, "MF usa a distância manual");
 });

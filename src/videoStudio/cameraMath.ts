@@ -25,8 +25,16 @@ export interface FramingMetrics {
   feetInFrame: boolean;
 }
 
+/** Zoom digital aplicado ao FOV (1 = desligado; corta o sensor). */
+export function digitalZoomOf(camera: CameraElement): number {
+  const z = camera.digitalZoom ?? 1;
+  return Number.isFinite(z) && z > 1 ? Math.min(z, 4) : 1;
+}
+
 export function verticalFovDeg(camera: CameraElement): number {
-  return 2 * Math.atan(camera.sensor.height / 2 / camera.lens.focalLength) * RAD_TO_DEG;
+  const base =
+    2 * Math.atan(camera.sensor.height / 2 / camera.lens.focalLength) * RAD_TO_DEG;
+  return base / digitalZoomOf(camera);
 }
 
 /** Normaliza um ângulo em graus para [0, 360). */
@@ -49,7 +57,27 @@ export function rotationToward(
 }
 
 export function horizontalFovDeg(camera: CameraElement): number {
-  return 2 * Math.atan(camera.sensor.width / 2 / camera.lens.focalLength) * RAD_TO_DEG;
+  const base =
+    2 * Math.atan(camera.sensor.width / 2 / camera.lens.focalLength) * RAD_TO_DEG;
+  return base / digitalZoomOf(camera);
+}
+
+/**
+ * Distância de foco efetiva em cm. Foco manual (MF) usa `focusDistanceCm`;
+ * autofoco (AF) usa o `fallbackCm` (distância até o participante/alvo).
+ */
+export function focusDistanceCmOf(
+  camera: CameraElement,
+  fallbackCm: number
+): number {
+  if (
+    camera.focusMode === "manual" &&
+    camera.focusDistanceCm &&
+    camera.focusDistanceCm > 0
+  ) {
+    return camera.focusDistanceCm;
+  }
+  return fallbackCm;
 }
 
 /**

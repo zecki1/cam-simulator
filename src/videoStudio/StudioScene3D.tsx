@@ -8,6 +8,7 @@ import { GlbModel, ModelErrorBoundary } from "./GlbModelView";
 import { useShadowFlags } from "./gltfFit";
 import { GhostControls } from "./GhostControls";
 import { Environment, Lightformer } from "@react-three/drei";
+import { EffectComposer, DepthOfField } from "@react-three/postprocessing";
 import type {
   AcousticPanelElement,
   BoomMicElement,
@@ -20,7 +21,7 @@ import type {
   SubjectElement,
   TableElement,
 } from "../types/videoStudio";
-import { cameraAimDeg, isInCameraCone, verticalFovDeg } from "./cameraMath";
+import { cameraAimDeg, computeDof, focusDistanceCmOf, isInCameraCone, verticalFovDeg } from "./cameraMath";
 import { isPanningRecently } from "./interact";
 import { beamAngleRad, kelvinToRgb, lightAim, lightIntensity } from "./lighting";
 
@@ -829,6 +830,29 @@ export default function StudioScene3D({
   };
   const aimObj = { x: aim.x, y: aim.y, z: aim.z };
 
+  // Foco/DoF: distância de foco (MF manual ou AF no alvo) + faixa nítida + bokeh
+  const aimDistCm = Math.hypot(
+    camPos.x - aimObj.x,
+    camPos.y - aimObj.y,
+    camPos.z - aimObj.z
+  );
+  const focusCm = focusDistanceCmOf(camera, aimDistCm);
+  const dof = computeDof(
+    camera.lens.focalLength,
+    camera.lens.currentAperture,
+    camera.sensor.coc,
+    focusCm * 10
+  );
+  const focusRangeCm = Math.min(
+    Math.max(Number.isFinite(dof.totalMm) ? dof.totalMm / 10 : 4000, 5),
+    4000
+  );
+  // abertura maior (f menor) = bokeh mais forte
+  const bokehScale = Math.min(
+    6,
+    Math.max(0.6, 12 / camera.lens.currentAperture)
+  );
+
   const shadowsEnabled = useVideoStudio((s) => s.shadowsEnabled);
   const storeShadowBudget = useVideoStudio((s) => s.shadowBudget);
 
@@ -1019,6 +1043,15 @@ export default function StudioScene3D({
           />
         );
       })}
+
+      {/* Profundidade de campo (bokeh) — foco AF/MF da câmera ativa */}
+      <EffectComposer multisampling={4}>
+        <DepthOfField
+          worldFocusDistance={focusCm}
+          worldFocusRange={focusRangeCm}
+          bokehScale={bokehScale}
+        />
+      </EffectComposer>
     </Canvas>
   );
 }

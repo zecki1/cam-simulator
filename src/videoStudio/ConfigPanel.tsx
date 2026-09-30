@@ -664,6 +664,46 @@ export default function ConfigPanel() {
                 }
               />
             </Field>
+            <Field label="Modo de foco">
+              <SelectField
+                ariaLabel="Modo de foco"
+                value={c.focusMode ?? "auto"}
+                options={[
+                  { value: "auto", label: "Autofoco no alvo" },
+                  { value: "manual", label: "Foco manual (MF)" },
+                ]}
+                onChange={(mode) =>
+                  updateElement(c.id, {
+                    focusMode: mode === "manual" ? "manual" : "auto",
+                    focusDistanceCm: c.focusDistanceCm ?? 300,
+                  })
+                }
+              />
+            </Field>
+            {(c.focusMode ?? "auto") === "manual" && (
+              <SliderField
+                label="Distância de foco"
+                value={c.focusDistanceCm ?? 300}
+                min={30}
+                max={1500}
+                step={5}
+                display={(v) => formatMeters(v, 2)}
+                onChange={(focusDistanceCm) =>
+                  updateElement(c.id, { focusDistanceCm })
+                }
+              />
+            )}
+            <SliderField
+              label="Zoom digital"
+              value={c.digitalZoom ?? 1}
+              min={1}
+              max={2}
+              step={0.05}
+              display={(v) => `${v.toFixed(2).replace(".", ",")}×`}
+              onChange={(digitalZoom) =>
+                updateElement(c.id, { digitalZoom })
+              }
+            />
             {!model && (
               <Field label="Sensor">
                 <SelectField
@@ -764,6 +804,23 @@ export default function ConfigPanel() {
                 <b>{formatMeters(distanceCm(c.position, target.position), 2)}</b>
               </Text>
             )}
+            <Button
+              size="xs"
+              variant="outline"
+              mb={2}
+              onClick={() => {
+                const subj = elements.find(
+                  (e) => e.type === "subject" && e.visible
+                );
+                if (!subj) return;
+                updateElement(c.id, {
+                  targetId: subj.id,
+                  rotation: rotationToward(c.position, subj.position),
+                });
+              }}
+            >
+              🎯 Reenquadrar no alvo
+            </Button>
             {c.id !== activeCameraId && (
               <Button size="sm" colorScheme="orange" variant="outline" mb={2} onClick={() => setActiveCamera(c.id)}>
                 Usar como câmera da simulação

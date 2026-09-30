@@ -62,11 +62,11 @@ Detalhamento completo, critérios de aceite e métricas em **[PLANEJAMENTO.md](.
 | 3 | Reflexos realistas (Environment map em óculos/brincos/relógio) | 1 dia | ✅ **concluída** |
 | 4 | Sombras universais (toda luz projeta sombra, queda com distância) | 0,5–1 dia | ✅ **concluída** |
 | 5 | Modo perspectiva "fantasma" (WASD + mouse) | 1 dia | ✅ **concluída** |
-| 6 | Simulador 100% de câmera (zoom, pan/tilt, foco manual + bokeh, **anatomia interativa**) | 2 dias | 🔄 **parcial (modelos câmera + pan + anatomia ✓)** |
+| 6 | Simulador 100% de câmera (zoom, pan/tilt, foco manual + bokeh, **anatomia interativa**) | 2 dias | 🔄 **parcial (modelos + pan + anatomia + foco MF/AF + bokeh 3D + zoom digital ✓; extras em backlog)** |
 | 7 | Nova página: **Bancada de Áudio e Vídeo** (patchbay + mesa de vídeo + controle das 2 PTZ) | 2–3 dias | ⬜ pendente |
 | 8 | Testes e validação das etapas acima | 1 dia | ⬜ pendente |
 
-**Progresso: 6/8 etapas concluídas · Etapa 6 parcial (modelos de câmera + pan + anatomia ✓)**
+**Progresso: 6/8 etapas concluídas · Etapa 6 parcial (modelos de câmera + pan + anatomia + foco MF/AF + bokeh 3D + zoom digital ✓)**
 
 ---
 
